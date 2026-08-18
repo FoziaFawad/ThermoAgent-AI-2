@@ -8,7 +8,7 @@ import AgentTerminal from '../../../components/agents/AgentTerminal';
 import CoolRoofSlider from '../../../components/simulation/CoolRoofSlider';
 import CanopyDensity from '../../../components/simulation/CanopyDensity';
 import ROIAnalysisCard from '../../../components/simulation/ROIAnalysisCard';
-import { CITY_PRESETS, CityPreset } from '../../../lib/mapbox';
+import { CITY_PRESETS, CityPreset } from '../../../lib/map-presets';
 import { FortyGuardReading } from '../../../types/fortyguard';
 import { AuditedBuilding } from '../../../types/simulation';
 import { AgentLogEntry } from '../../../types/agent';

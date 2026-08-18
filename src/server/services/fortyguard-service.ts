@@ -1,5 +1,5 @@
 import { FortyGuardFeedResponse, FortyGuardReading, BoundingBox } from '../../types/fortyguard';
-import { CITY_PRESETS } from '../../lib/mapbox';
+import { CITY_PRESETS } from '../../lib/map-presets';
 import { H3Service } from './h3-service';
 
 export class FortyGuardService {

@@ -6,7 +6,7 @@ import CuringRiskGauge from '../../../components/construction/CuringRiskGauge';
 import PourScheduleTimeline from '../../../components/construction/PourScheduleTimeline';
 import AdmixtureAdvisor from '../../../components/construction/AdmixtureAdvisor';
 import { ConstructionAuditReport } from '../../../types/construction';
-import { CITY_PRESETS, CityPreset } from '../../../lib/mapbox';
+import { CITY_PRESETS, CityPreset } from '../../../lib/map-presets';
 import { ShieldAlert, RefreshCw, Layers, CheckCircle2 } from 'lucide-react';
 
 export default function ConstructionPage() {

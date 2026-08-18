@@ -18,6 +18,9 @@ export default function LayerControlPanel({
   activeLayers,
   onToggleLayer
 }: LayerControlPanelProps) {
+  const mapTilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY || '';
+  const hasValidMapTilerKey = mapTilerKey && !mapTilerKey.includes('your_') && mapTilerKey.length > 10 && !mapTilerKey.includes('dummy');
+
   return (
     <div className="bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-lg rounded-2xl p-3 flex flex-col gap-2">
       <div className="flex items-center gap-2 px-1 text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">
@@ -85,7 +88,7 @@ export default function LayerControlPanel({
         >
           <div className="flex items-center gap-2">
             <Globe2 size={14} className={activeLayers.satellite ? 'text-purple-600' : 'text-slate-400'} />
-            <span>Google Earth Satellite View</span>
+            <span>{hasValidMapTilerKey ? 'MapTiler Satellite Hybrid' : 'Satellite Hybrid View'}</span>
           </div>
           <span className={`w-2 h-2 rounded-full ${activeLayers.satellite ? 'bg-purple-500' : 'bg-slate-300'}`} />
         </button>

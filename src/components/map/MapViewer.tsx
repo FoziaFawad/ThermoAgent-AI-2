@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import * as maptilersdk from '@maptiler/sdk';
+import '@maptiler/sdk/dist/maptiler-sdk.css';
 import { FortyGuardReading } from '../../types/fortyguard';
 import { AuditedBuilding } from '../../types/simulation';
 import { H3Service } from '../../server/services/h3-service';
-import { getThermalColorRgba, CityPreset, OPEN_SATELLITE_STYLE, OPEN_DARK_STYLE } from '../../lib/mapbox';
+import { getThermalColorRgba, CityPreset } from '../../lib/map-presets';
 
 interface MapViewerProps {
   selectedCity: CityPreset;
@@ -32,7 +32,8 @@ export default function MapViewer({
   onSelectBuilding
 }: MapViewerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<maptilersdk.Map | null>(null);
+  const isInitialMount = useRef(true);
   const [hoveredInfo, setHoveredInfo] = useState<{
     x: number;
     y: number;
@@ -40,46 +41,30 @@ export default function MapViewer({
     data: any;
   } | null>(null);
 
-  // Initialize Mapbox Map
+  // Initialize MapTiler Map
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    const rawToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
-    const hasValidToken = rawToken && !rawToken.includes('your_') && rawToken.length > 25 && !rawToken.includes('dummy') && !rawToken.includes('thermoagent');
+    const mapTilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY || '';
+    maptilersdk.config.apiKey = mapTilerKey;
 
-    if (hasValidToken) {
-      mapboxgl.accessToken = rawToken;
-    }
+    const initialStyle = activeLayers.satellite
+      ? maptilersdk.MapStyle.HYBRID
+      : maptilersdk.MapStyle.DATAVIZ.DARK;
 
-    // Use Mapbox style if valid token, otherwise use high-resolution open satellite style
-    const initialStyle = hasValidToken
-      ? (activeLayers.satellite ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/dark-v11')
-      : (activeLayers.satellite ? OPEN_SATELLITE_STYLE : OPEN_DARK_STYLE);
-
-    const mapInstance = new mapboxgl.Map({
+    const mapInstance = new maptilersdk.Map({
       container: mapContainer.current,
       style: initialStyle,
       center: [selectedCity.coordinates.longitude, selectedCity.coordinates.latitude],
       zoom: selectedCity.coordinates.zoom,
       pitch: selectedCity.coordinates.pitch,
-      bearing: selectedCity.coordinates.bearing,
-      antialias: true
+      bearing: selectedCity.coordinates.bearing
     });
 
-    mapInstance.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right');
-    mapInstance.addControl(new mapboxgl.ScaleControl(), 'bottom-right');
+    mapInstance.addControl(new maptilersdk.NavigationControl({ visualizePitch: true }), 'top-right');
+    mapInstance.addControl(new maptilersdk.ScaleControl(), 'bottom-right');
 
     mapInstance.on('load', () => {
-      try {
-        mapInstance.setFog({
-          range: [0.8, 8],
-          color: '#1a1f2c',
-          'horizon-blend': 0.1,
-          'high-color': '#0f172a',
-          'space-color': '#020617'
-        });
-      } catch {}
-
       updateMapLayers(mapInstance, readings, buildings, activeLayers);
     });
 
@@ -103,18 +88,47 @@ export default function MapViewer({
     });
   }, [selectedCity]);
 
+  // Handle dynamic map style switching (Satellite vs Dark)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (!map.current) return;
+
+    const targetStyle = activeLayers.satellite
+      ? maptilersdk.MapStyle.HYBRID
+      : maptilersdk.MapStyle.DATAVIZ.DARK;
+
+    const handleStyleLoad = () => {
+      if (map.current) {
+        updateMapLayers(map.current, readings, buildings, activeLayers);
+      }
+    };
+
+    map.current.once('style.load', handleStyleLoad);
+    map.current.setStyle(targetStyle);
+
+    return () => {
+      if (map.current) {
+        map.current.off('style.load', handleStyleLoad);
+      }
+    };
+  }, [activeLayers.satellite]);
+
   // Update layers when data or toggles change
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
     updateMapLayers(map.current, readings, buildings, activeLayers);
   }, [readings, buildings, activeLayers]);
 
-  const updateMapLayers = (
-    m: mapboxgl.Map,
+
+  function updateMapLayers(
+    m: maptilersdk.Map,
     thermalReadings: FortyGuardReading[],
     auditedBuildings: AuditedBuilding[],
     layers: typeof activeLayers
-  ) => {
+  ) {
     // 1. Build H3 Hexagons GeoJSON FeatureCollection
     const hexFeatures: GeoJSON.Feature[] = thermalReadings.map(r => {
       const polygonCoords = H3Service.cellToGeoJSONPolygon(r.h3Index);
@@ -149,7 +163,7 @@ export default function MapViewer({
 
     // Update or Add H3 Source & Layers
     if (m.getSource('h3-thermal-source')) {
-      (m.getSource('h3-thermal-source') as mapboxgl.GeoJSONSource).setData(hexGeoJSON);
+      (m.getSource('h3-thermal-source') as maptilersdk.GeoJSONSource).setData(hexGeoJSON);
     } else {
       m.addSource('h3-thermal-source', {
         type: 'geojson',
@@ -268,7 +282,7 @@ export default function MapViewer({
     };
 
     if (m.getSource('osm-buildings-source')) {
-      (m.getSource('osm-buildings-source') as mapboxgl.GeoJSONSource).setData(buildingGeoJSON);
+      (m.getSource('osm-buildings-source') as maptilersdk.GeoJSONSource).setData(buildingGeoJSON);
     } else {
       m.addSource('osm-buildings-source', {
         type: 'geojson',
@@ -319,7 +333,7 @@ export default function MapViewer({
         layers.buildings3D ? 'visible' : 'none'
       );
     }
-  };
+  }
 
   return (
     <div className="relative w-full h-full">

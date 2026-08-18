@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FortyGuardService } from '../../../../../server/services/fortyguard-service';
 import { OSMService } from '../../../../../server/services/osm-service';
-import { CITY_PRESETS } from '../../../../../lib/mapbox';
+import { CITY_PRESETS } from '../../../../../lib/map-presets';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

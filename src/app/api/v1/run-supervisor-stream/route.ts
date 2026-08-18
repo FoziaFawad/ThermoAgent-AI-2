@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { FortyGuardService } from '../../../../server/services/fortyguard-service';
 import { OSMService } from '../../../../server/services/osm-service';
-import { CITY_PRESETS } from '../../../../lib/mapbox';
+import { CITY_PRESETS } from '../../../../lib/map-presets';
 import { calculateTotalCoolingDelta, calculateEnergyAndROI } from '../../../../lib/thermal-math';
 
 export async function POST(req: NextRequest) {

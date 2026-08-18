@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CITY_PRESETS } from '../../../../../lib/mapbox';
+import { CITY_PRESETS } from '../../../../../lib/map-presets';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

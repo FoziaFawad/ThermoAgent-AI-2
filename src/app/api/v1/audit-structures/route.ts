@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OSMService } from '../../../../server/services/osm-service';
-import { CITY_PRESETS } from '../../../../lib/mapbox';
+import { CITY_PRESETS } from '../../../../lib/map-presets';
 
 export async function POST(req: NextRequest) {
   let body: any = {};
