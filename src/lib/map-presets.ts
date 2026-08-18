@@ -77,55 +77,6 @@ export const CITY_PRESETS: CityPreset[] = [
   }
 ];
 
-// Open raster style definitions that require zero API tokens
-export const OPEN_SATELLITE_STYLE: any = {
-  version: 8,
-  sources: {
-    'esri-satellite': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-      ],
-      tileSize: 256,
-      attribution: '© Esri, Maxar, Earthstar Geographics'
-    }
-  },
-  layers: [
-    {
-      id: 'esri-satellite-layer',
-      type: 'raster',
-      source: 'esri-satellite',
-      minzoom: 0,
-      maxzoom: 22
-    }
-  ]
-};
-
-export const OPEN_DARK_STYLE: any = {
-  version: 8,
-  sources: {
-    'carto-dark': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-      ],
-      tileSize: 256,
-      attribution: '© CARTO © OpenStreetMap contributors'
-    }
-  },
-  layers: [
-    {
-      id: 'carto-dark-layer',
-      type: 'raster',
-      source: 'carto-dark',
-      minzoom: 0,
-      maxzoom: 22
-    }
-  ]
-};
-
 // Color ramp interpolation for 2m ambient thermal heatmaps
 export function getThermalColorRgba(tempF: number, minF: number = 85, maxF: number = 115): [number, number, number, number] {
   const normalized = Math.min(1, Math.max(0, (tempF - minF) / (maxF - minF)));

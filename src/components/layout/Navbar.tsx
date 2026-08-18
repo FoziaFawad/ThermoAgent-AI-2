@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CITY_PRESETS, CityPreset } from '../../lib/mapbox';
+import { CITY_PRESETS, CityPreset } from '../../lib/map-presets';
 import { Flame, ShieldAlert, Sparkles, MapPin, Activity } from 'lucide-react';
 
 interface NavbarProps {
