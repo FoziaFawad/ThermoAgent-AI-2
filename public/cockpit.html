@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThermoAgent AI — Autonomous Microclimate & Infrastructure Intelligence</title>
+  
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #030712;
+      overflow-x: hidden;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    .glass-panel-glow {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      box-shadow: 0 0 40px rgba(2, 132, 199, 0.18);
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #030712;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0284c7;
+    }
+  </style>
+</head>
+<body class="text-slate-100 antialiased selection:bg-cyan-500 selection:text-black">
+
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container" class="fixed inset-0 z-0 pointer-events-auto"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="fixed top-0 left-0 right-0 z-40 px-6 py-4 flex items-center justify-between pointer-events-none">
+    <div class="flex items-center gap-3 pointer-events-auto">
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25 border border-white/20">
+        <i data-lucide="flame" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="text-base font-extrabold tracking-tight flex items-center gap-2">
+          THERMOAGENT <span class="px-1.5 py-0.5 text-[10px] bg-cyan-500/20 text-cyan-400 rounded border border-cyan-500/30">AI</span>
+        </div>
+        <div class="text-[11px] text-slate-400 font-mono tracking-wider">2M MICROCLIMATE & CIVIL ADVISORY SYSTEM</div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Status -->
+    <div class="hidden md:flex items-center gap-4 px-4 py-2 rounded-full glass-panel pointer-events-auto">
+      <div class="flex items-center gap-2 font-mono text-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span class="text-slate-400">TELEMETRY:</span>
+        <span class="text-cyan-400 font-semibold">FORTYGUARD 2M AIR GRID</span>
+      </div>
+      <div class="h-3.5 w-px bg-slate-700"></div>
+      <div class="font-mono text-xs text-slate-300">
+        <span class="text-slate-500">HEIGHT:</span> 2.0m AGL (Human Canopy)
+      </div>
+      <div class="h-3.5 w-px bg-slate-700"></div>
+      <div class="font-mono text-xs text-amber-400 flex items-center gap-1">
+        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+        <span>ACI 305R ACTIVE</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 pointer-events-auto">
+      <a href="/dashboard" class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 transition-all flex items-center gap-1.5">
+        <i data-lucide="map" class="w-3.5 h-3.5"></i>
+        <span>2D/3D GIS Map</span>
+      </a>
+      <button onclick="runWorkflowExecution()" class="px-4 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black shadow-lg shadow-cyan-500/20 transition-all active:scale-95 flex items-center gap-2">
+        <i data-lucide="play" class="w-3.5 h-3.5 fill-black"></i>
+        Run Autonomous Analysis
+      </button>
+      <button onclick="downloadOfficialReportPDF()" class="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 transition-all active:scale-95 flex items-center gap-2">
+        <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+        Export Official PDF
+      </button>
+    </div>
+  </header>
+
+  <!-- Left Sidebar: Execution Pipeline (Clean Labels: Detection, Analysis, Simulation, Action) -->
+  <aside class="fixed left-6 top-24 bottom-6 w-80 z-30 flex flex-col gap-3 pointer-events-none">
+    <div class="glass-panel p-4 rounded-2xl flex-1 flex flex-col pointer-events-auto overflow-hidden border-t-2 border-t-cyan-500/50">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-200">Execution State Engine</span>
+        </div>
+        <span id="pipeline-status" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">READY</span>
+      </div>
+
+      <!-- Execution Stages -->
+      <div class="space-y-2.5 overflow-y-auto pr-1 flex-1 text-xs">
+        
+        <!-- Detection -->
+        <div id="step-detection" class="p-3 rounded-xl bg-slate-900/60 border border-white/5 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5">
+              <span id="dot-detection" class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> Thermal Anomaly Detection
+            </span>
+            <span class="text-[10px] font-mono text-cyan-400">FORTYGUARD 2M</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Scans 2m air temperatures across urban blocks and isolates anomalies &ge; +3.5°F.</p>
+        </div>
+
+        <!-- Analysis -->
+        <div id="step-analysis" class="p-3 rounded-xl bg-slate-900/60 border border-white/5 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5">
+              <span id="dot-analysis" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Building & Surface Analysis
+            </span>
+            <span class="text-[10px] font-mono text-slate-500">AUDIT</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Extracts roof dimensions (4,500 m²), baseline reflectivity (α=0.18), and tree canopy deficit.</p>
+        </div>
+
+        <!-- Simulation -->
+        <div id="step-simulation" class="p-3 rounded-xl bg-slate-900/60 border border-white/5 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5">
+              <span id="dot-simulation" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Thermodynamic Simulation
+            </span>
+            <span class="text-[10px] font-mono text-slate-500">PHYSICS MATH</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Deterministic model calculates -2.6°C ambient drop, HVAC kWh savings, and capital payback.</p>
+        </div>
+
+        <!-- Action Results -->
+        <div id="step-action" class="p-3 rounded-xl bg-slate-900/60 border border-white/5 transition-all">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5">
+              <span id="dot-action" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Action & Decision Output
+            </span>
+            <span class="text-[10px] font-mono text-slate-500">SYNTHESIS</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Generates municipal planning memos, MapTiler vector layers, and structured PDF specs.</p>
+        </div>
+
+      </div>
+
+      <!-- Execution Trace Log -->
+      <div class="mt-3 pt-3 border-t border-white/10">
+        <div class="text-[10px] font-mono text-slate-400 uppercase mb-1">Execution Trace Stream</div>
+        <div id="console-logs" class="h-24 overflow-y-auto font-mono text-[10px] text-slate-400 space-y-1 bg-black/40 p-2 rounded-lg">
+          <div class="text-cyan-400">> Telemetry engine idle. Awaiting command...</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right Floating HUD: Target Asset & Civil Infrastructure Thermal Advisory -->
+  <aside class="fixed right-6 top-24 bottom-6 w-96 z-30 flex flex-col gap-3 pointer-events-none">
+    <div class="glass-panel-glow p-5 rounded-2xl flex-1 flex flex-col pointer-events-auto overflow-y-auto">
+      
+      <!-- Target Banner -->
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <div>
+          <span class="text-[10px] font-mono text-cyan-400 tracking-wider">TARGET NODE #FG-8041</span>
+          <h2 class="text-sm font-bold text-slate-100" id="target-title">Karachi District Central Grid</h2>
+        </div>
+        <div class="text-right">
+          <div class="text-xs font-mono font-bold text-rose-400" id="target-temp">+41.8°C (107.2°F)</div>
+          <div class="text-[10px] font-mono text-slate-400">2M AMBIENT AIR</div>
+        </div>
+      </div>
+
+      <!-- Microclimate Simulation Results -->
+      <div class="grid grid-cols-2 gap-2 my-3">
+        <div class="p-2.5 rounded-xl bg-slate-900/70 border border-white/5">
+          <div class="text-[10px] text-slate-400 font-mono">EXPECTED COOLING</div>
+          <div class="text-base font-bold text-emerald-400 font-mono" id="sim-temp-drop">-2.6°C (-4.7°F)</div>
+          <div class="text-[10px] text-slate-500">At 2m human height</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900/70 border border-white/5">
+          <div class="text-[10px] text-slate-400 font-mono">HVAC OPEX SAVINGS</div>
+          <div class="text-base font-bold text-cyan-400 font-mono" id="sim-energy-saved">$26,280 / yr</div>
+          <div class="text-[10px] text-slate-500">164,250 kWh avoided</div>
+        </div>
+      </div>
+
+      <!-- Civil Infrastructure Thermal Advisory Card (HUMANIZED & AUTHORITATIVE) -->
+      <div class="mt-2 p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-amber-300 font-bold text-xs">
+            <i data-lucide="hard-hat" class="w-4 h-4"></i>
+            <span>CIVIL INFRASTRUCTURE THERMAL ADVISORY</span>
+          </div>
+          <span class="text-[9px] font-mono bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded border border-rose-500/30">ACI 305R CRITICAL</span>
+        </div>
+
+        <p class="text-[11px] text-slate-300 leading-relaxed" id="advisory-summary">
+          High ambient heat (41.8°C) creates an evaporation rate of <b>1.38 kg/m²/h</b>, exceeding the critical cracking threshold. Rapid moisture loss will cause severe tensile plastic shrinkage cracking and structural failure.
+        </p>
+
+        <!-- Structured Guidance Details -->
+        <div class="space-y-1.5 pt-2 border-t border-amber-500/20 text-[11px] font-mono">
+          <div class="flex justify-between">
+            <span class="text-slate-400">Approved Shift Window:</span>
+            <span class="text-emerald-400 font-bold" id="advisory-window">21:30 — 05:30 PKT (Night Only)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Hydration Admixture:</span>
+            <span class="text-cyan-300 font-bold">Type-II Slag (35%) + Retarder</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Reconstruction Avoidance:</span>
+            <span class="text-emerald-400 font-bold" id="advisory-savings">$92,000 Saved in Penalties</span>
+          </div>
+        </div>
+
+        <div class="p-2 rounded bg-black/40 text-[10px] text-slate-400">
+          <span class="text-amber-400 font-bold">Constructor Directive:</span> Apply monomolecular curing barrier immediately post-screeding and maintain wet burlap curing with reflective polyethylene sheets for 10 consecutive days.
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <div class="mt-3">
+        <button onclick="downloadOfficialReportPDF()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          Generate Onsite Engineering Memo (PDF)
+        </button>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Bottom Hotspot Selector Controls -->
+  <footer class="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+    <div class="glass-panel px-6 py-3 rounded-full flex items-center gap-6">
+      <div class="text-xs font-mono text-slate-400 flex items-center gap-2">
+        <i data-lucide="globe" class="w-4 h-4 text-cyan-400"></i>
+        <span>SELECT ACTIVE CLUSTER:</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="focusHotspot(0)" id="btn-city-0" class="px-3 py-1 rounded-full text-xs font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition">
+          Karachi (#1)
+        </button>
+        <button onclick="focusHotspot(1)" id="btn-city-1" class="px-3 py-1 rounded-full text-xs font-mono bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+          Phoenix (#2)
+        </button>
+        <button onclick="focusHotspot(2)" id="btn-city-2" class="px-3 py-1 rounded-full text-xs font-mono bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+          Riyadh (#3)
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Three.js 3D Globe & Dynamic Animation Engine -->
+  <script>
+    lucide.createIcons();
+
+    // Scene & Camera setup
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 4.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2.2;
+    controls.maxDistance = 8;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.6;
+
+    // Earth Sphere Group
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+
+    const globeRadius = 1.35;
+    const sphereGeo = new THREE.SphereGeometry(globeRadius, 64, 64);
+    
+    // Canvas-based dark procedural texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#060d1d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.lineWidth = 1.5;
+    for (let x = 0; x < canvas.width; x += 64) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 64) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+    for (let i = 0; i < 3500; i++) {
+      const px = Math.random() * canvas.width;
+      const py = Math.random() * canvas.height;
+      ctx.beginPath();
+      ctx.arc(px, py, Math.random() * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const globeTexture = new THREE.CanvasTexture(canvas);
+    const globeMat = new THREE.MeshPhongMaterial({
+      map: globeTexture,
+      shininess: 25,
+      specular: new THREE.Color('#0284c7'),
+      emissive: new THREE.Color('#031024')
+    });
+    const globeMesh = new THREE.Mesh(sphereGeo, globeMat);
+    earthGroup.add(globeMesh);
+
+    // Wireframe Outer Mesh
+    const wireframeMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.08
+    });
+    const wireframeMesh = new THREE.Mesh(new THREE.SphereGeometry(globeRadius + 0.015, 32, 32), wireframeMat);
+    earthGroup.add(wireframeMesh);
+
+    // Glowing Atmospheric Rim Shader
+    const atmosphereMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.5);
+          gl_FragColor = vec4(0.01, 0.52, 0.98, 1.0) * intensity;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true
+    });
+    const atmosphereMesh = new THREE.Mesh(new THREE.SphereGeometry(globeRadius * 1.15, 48, 48), atmosphereMat);
+    earthGroup.add(atmosphereMesh);
+
+    // Coordinate conversion
+    function latLonToVector3(lat, lon, radius) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lon + 180) * (Math.PI / 180);
+      return new THREE.Vector3(
+        -(radius * Math.sin(phi) * Math.cos(theta)),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    const hotspots = [
+      { name: "Karachi District Central Grid", lat: 24.8607, lon: 67.0011, temp: "+41.8°C", cooling: "-2.6°C", savings: "$26,280 / yr", pour: "21:30 — 05:30 PKT", avoided: "$92,000 Saved" },
+      { name: "Phoenix Downtown Transit Hub", lat: 33.4484, lon: -112.0740, temp: "+44.2°C", cooling: "-3.1°C", savings: "$31,500 / yr", pour: "22:00 — 05:00 MST", avoided: "$115,000 Saved" },
+      { name: "Riyadh Industrial Park Phase 2", lat: 24.7136, lon: 46.6753, temp: "+45.9°C", cooling: "-3.6°C", savings: "$38,400 / yr", pour: "22:30 — 04:30 AST", avoided: "$140,000 Saved" }
+    ];
+
+    const hotspotMeshes = [];
+    hotspots.forEach((spot) => {
+      const pos = latLonToVector3(spot.lat, spot.lon, globeRadius + 0.02);
+      
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.035, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xf43f5e })
+      );
+      marker.position.copy(pos);
+      earthGroup.add(marker);
+
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.045, 0.07, 32),
+        new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+      );
+      ring.position.copy(pos);
+      ring.lookAt(new THREE.Vector3(0, 0, 0));
+      earthGroup.add(ring);
+
+      hotspotMeshes.push({ marker, ring, spot });
+    });
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.5);
+    dirLight.position.set(5, 3, 5);
+    scene.add(dirLight);
+
+    let activeHotspotIndex = 0;
+
+    window.focusHotspot = function(index) {
+      activeHotspotIndex = index;
+      controls.autoRotate = false;
+      const target = hotspots[index];
+      const pos = latLonToVector3(target.lat, target.lon, globeRadius + 1.6);
+      
+      // Update Button Styles
+      [0, 1, 2].forEach(i => {
+        const btn = document.getElementById(`btn-city-${i}`);
+        if (i === index) {
+          btn.className = "px-3 py-1 rounded-full text-xs font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition";
+        } else {
+          btn.className = "px-3 py-1 rounded-full text-xs font-mono bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+        }
+      });
+
+      // Smooth Camera Interpolation
+      const startPos = camera.position.clone();
+      const endPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+      let progress = 0;
+      function step() {
+        progress += 0.035;
+        camera.position.lerpVectors(startPos, endPos, progress);
+        camera.lookAt(0, 0, 0);
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      step();
+
+      // Update Right HUD Values
+      document.getElementById('target-title').innerText = target.name;
+      document.getElementById('target-temp').innerText = target.temp;
+      document.getElementById('sim-temp-drop').innerText = target.cooling;
+      document.getElementById('sim-energy-saved').innerText = target.savings;
+      document.getElementById('advisory-window').innerText = target.pour;
+      document.getElementById('advisory-savings').innerText = target.avoided;
+    };
+
+    // Autonomous Execution Pipeline Flow
+    window.runWorkflowExecution = async function() {
+      const status = document.getElementById('pipeline-status');
+      const logs = document.getElementById('console-logs');
+      status.innerText = "EXECUTING";
+      status.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
+
+      function addLog(text, color = "text-slate-300") {
+        const line = document.createElement('div');
+        line.className = color;
+        line.innerText = `> ${text}`;
+        logs.appendChild(line);
+        logs.scrollTop = logs.scrollHeight;
+      }
+
+      // Reset step highlights
+      ['detection', 'analysis', 'simulation', 'action'].forEach(s => {
+        document.getElementById(`step-${s}`).className = "p-3 rounded-xl bg-slate-900/60 border border-white/5 transition-all";
+        document.getElementById(`dot-${s}`).className = "w-1.5 h-1.5 rounded-full bg-slate-600";
+      });
+
+      addLog("Connecting FortyGuard 2m Ambient Thermal API...", "text-cyan-400");
+
+      setTimeout(() => {
+        document.getElementById('step-detection').className = "p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 transition-all";
+        document.getElementById('dot-detection').className = "w-1.5 h-1.5 rounded-full bg-cyan-400";
+        addLog("Detection: Isolated thermal anomaly +10.08°F at Karachi Central.", "text-amber-400");
+      }, 700);
+
+      setTimeout(() => {
+        document.getElementById('step-analysis').className = "p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 transition-all";
+        document.getElementById('dot-analysis').className = "w-1.5 h-1.5 rounded-full bg-cyan-400";
+        addLog("Analysis: Building footprint 4,500 m² | Albedo α=0.18 | Canopy deficit 92%.", "text-cyan-300");
+      }, 1500);
+
+      setTimeout(() => {
+        document.getElementById('step-simulation').className = "p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 transition-all";
+        document.getElementById('dot-simulation').className = "w-1.5 h-1.5 rounded-full bg-cyan-400";
+        addLog("Simulation: Evaluated Fourier heat balance -> Localized cooling -2.6°C (-4.7°F).", "text-emerald-400");
+      }, 2300);
+
+      setTimeout(() => {
+        document.getElementById('step-action').className = "p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 transition-all";
+        document.getElementById('dot-action').className = "w-1.5 h-1.5 rounded-full bg-cyan-400";
+        addLog("Action: Advisory memo & MapTiler layers compiled. ACI 305R schedule locked.", "text-indigo-300");
+        status.innerText = "COMPLETED";
+        status.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+      }, 3100);
+    };
+
+    // Download Official PDF Report directly from Python backend
+    window.downloadOfficialReportPDF = async function() {
+      const activeHotspot = hotspots[activeHotspotIndex];
+      const payload = {
+        location_name: activeHotspot.name,
+        ambient_temp_2m_c: parseFloat(activeHotspot.temp.replace("+", "").replace("°C", "")),
+        roof_area_sqm: 4500.0,
+        baseline_albedo: 0.18,
+        target_albedo: 0.85,
+        added_trees_count: 40,
+        electricity_cost_per_kwh: 0.16
+      };
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/v1/export/advisory-report-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error("Backend server not connected. Ensure FastAPI is running on http://127.0.0.1:8000");
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ThermoAgent_Advisory_Report_${activeHotspot.name.split(' ')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert(err.message + "\n\nTip: Run `uvicorn backend.main:app --reload` to start the backend engine.");
+      }
+    };
+
+    // Animation Loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      
+      const time = Date.now() * 0.003;
+      hotspotMeshes.forEach(h => {
+        const scale = 1 + Math.sin(time) * 0.25;
+        h.ring.scale.set(scale, scale, scale);
+      });
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

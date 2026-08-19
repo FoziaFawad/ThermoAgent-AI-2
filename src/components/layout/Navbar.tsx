@@ -107,6 +107,18 @@ export default function Navbar({
             <span className="hidden sm:inline">Guardian</span>
           </Link>
 
+          <Link
+            href="/telemetry"
+            className={`text-xs font-bold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+              pathname === '/telemetry'
+                ? 'bg-cyan-50 text-cyan-800 border border-cyan-200 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <RefreshCw size={13} />
+            <span className="hidden sm:inline">2M Telemetry</span>
+          </Link>
+
           {/* User Profile Avatar */}
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 shadow-sm flex items-center justify-center cursor-pointer hover:scale-105 transition-transform">
             <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-xs font-extrabold text-blue-600 font-sans">
