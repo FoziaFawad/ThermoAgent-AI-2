@@ -19,13 +19,13 @@ export default function LayerControlPanel({
   onToggleLayer
 }: LayerControlPanelProps) {
   return (
-    <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/60 shadow-2xl rounded-2xl p-3.5 flex flex-col gap-2.5 text-white">
-      <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-2">
+    <div className="bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-xl rounded-2xl p-4 flex flex-col gap-3 text-slate-800 font-sans">
+      <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-100 pb-2">
         <div className="flex items-center gap-2">
-          <Layers size={14} className="text-cyan-400" />
+          <Layers size={15} className="text-blue-600" />
           <span>GIS Digital Twin Layers</span>
         </div>
-        <span className="bg-cyan-500/20 text-cyan-300 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border border-cyan-500/30">
+        <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
           3D Active
         </span>
       </div>
@@ -34,65 +34,65 @@ export default function LayerControlPanel({
         {/* Basemap Switcher: Google Earth 3D Satellite vs Dark Matter */}
         <button
           onClick={() => onToggleLayer('satellite')}
-          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeLayers.satellite
-              ? 'bg-blue-600/90 text-white shadow-lg shadow-blue-500/25 border border-blue-400/40'
-              : 'text-slate-300 hover:bg-slate-800/80 bg-slate-950/40 border border-slate-800'
+              ? 'bg-blue-50 text-blue-800 border border-blue-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-50 bg-slate-50 border border-slate-200'
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <Globe2 size={14} className={activeLayers.satellite ? 'text-cyan-200' : 'text-blue-400'} />
+            <Globe2 size={15} className={activeLayers.satellite ? 'text-blue-600' : 'text-slate-400'} />
             <span>{activeLayers.satellite ? 'Google Earth 3D Satellite' : 'Dark Matter Night Mode'}</span>
           </div>
-          <span className={`w-2 h-2 rounded-full ${activeLayers.satellite ? 'bg-cyan-300 animate-pulse shadow-sm shadow-cyan-300' : 'bg-slate-600'}`} />
+          <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.satellite ? 'bg-blue-600' : 'bg-slate-300'}`} />
         </button>
 
-        {/* 3D City Buildings & Extrusions */}
+        {/* 3D City Buildings & Structures */}
         <button
           onClick={() => onToggleLayer('buildings3D')}
-          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeLayers.buildings3D
-              ? 'bg-indigo-600/20 text-indigo-200 border border-indigo-500/40 shadow-sm'
-              : 'text-slate-400 hover:bg-slate-800/80 bg-slate-950/40 border border-slate-800'
+              ? 'bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-50 bg-slate-50 border border-slate-200'
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <Building2 size={14} className={activeLayers.buildings3D ? 'text-indigo-400' : 'text-slate-500'} />
+            <Building2 size={15} className={activeLayers.buildings3D ? 'text-indigo-600' : 'text-slate-400'} />
             <span>3D Buildings & Structures</span>
           </div>
-          <span className={`w-2 h-2 rounded-full ${activeLayers.buildings3D ? 'bg-indigo-400 shadow-sm shadow-indigo-400' : 'bg-slate-600'}`} />
+          <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.buildings3D ? 'bg-indigo-600' : 'bg-slate-300'}`} />
         </button>
 
         {/* FortyGuard 2m Ambient Thermal Heatmap (3D Hex Prisms) */}
         <button
           onClick={() => onToggleLayer('ambientThermal')}
-          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeLayers.ambientThermal
-              ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40 shadow-sm'
-              : 'text-slate-400 hover:bg-slate-800/80 bg-slate-950/40 border border-slate-800'
+              ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-50 bg-slate-50 border border-slate-200'
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <Flame size={14} className={activeLayers.ambientThermal ? 'text-amber-400' : 'text-slate-500'} />
+            <Flame size={15} className={activeLayers.ambientThermal ? 'text-amber-600' : 'text-slate-400'} />
             <span>2m Ambient Heat (3D H3)</span>
           </div>
-          <span className={`w-2 h-2 rounded-full ${activeLayers.ambientThermal ? 'bg-amber-400 shadow-sm shadow-amber-400' : 'bg-slate-600'}`} />
+          <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.ambientThermal ? 'bg-amber-500' : 'bg-slate-300'}`} />
         </button>
 
         {/* Tree Canopy Buffer */}
         <button
           onClick={() => onToggleLayer('treeCanopy')}
-          className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeLayers.treeCanopy
-              ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40 shadow-sm'
-              : 'text-slate-400 hover:bg-slate-800/80 bg-slate-950/40 border border-slate-800'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-50 bg-slate-50 border border-slate-200'
           }`}
         >
           <div className="flex items-center gap-2.5">
-            <Trees size={14} className={activeLayers.treeCanopy ? 'text-emerald-400' : 'text-slate-500'} />
+            <Trees size={15} className={activeLayers.treeCanopy ? 'text-emerald-600' : 'text-slate-400'} />
             <span>50m Tree Canopy Buffers</span>
           </div>
-          <span className={`w-2 h-2 rounded-full ${activeLayers.treeCanopy ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-slate-600'}`} />
+          <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.treeCanopy ? 'bg-emerald-500' : 'bg-slate-300'}`} />
         </button>
       </div>
     </div>

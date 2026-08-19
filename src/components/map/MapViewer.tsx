@@ -3,18 +3,17 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Map as MapLibreMap,
-  NavigationControl,
-  ScaleControl,
-  AttributionControl,
   GeoJSONSource,
-  StyleSpecification
+  StyleSpecification,
+  Marker
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { FortyGuardReading } from '../../types/fortyguard';
 import { AuditedBuilding } from '../../types/simulation';
 import { H3Service } from '../../server/services/h3-service';
 import { getThermalColorRgba, CityPreset } from '../../lib/map-presets';
-import Map3DControls from './Map3DControls';
+import { getLandmark3DGeoJSON } from '../../lib/landmarks-3d';
+import GoogleEarthHUD from './GoogleEarthHUD';
 
 interface MapViewerProps {
   selectedCity: CityPreset;
@@ -32,7 +31,8 @@ interface MapViewerProps {
 }
 
 // -------------------------------------------------------------
-// Google Earth 3D Photorealistic Satellite & Realistic Textured Structures
+// Google Earth 3D Photorealistic Satellite & Realistic Solid Textured Structures
+// With High-Res Place, Road & Landmark Labels Overlay
 // -------------------------------------------------------------
 const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
   version: 8,
@@ -45,16 +45,27 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
       tileSize: 256,
       attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics'
     },
+    'carto-labels': {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png',
+        'https://d.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png'
+      ],
+      tileSize: 256,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    },
     'openmaptiles': {
       type: 'vector',
       url: 'https://tiles.openfreemap.org/planet'
     }
   },
   light: {
-    anchor: 'map',
-    color: '#fffbeb',
-    intensity: 0.65,
-    position: [1.4, 140, 48]
+    anchor: 'viewport',
+    color: '#ffffff',
+    intensity: 0.95,
+    position: [1.2, 195, 42]
   },
   layers: [
     {
@@ -78,22 +89,22 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
           [
             'match',
             ['coalesce', ['get', 'building:material'], ['get', 'material'], ''],
-            'glass', '#38bdf8',
-            'mirror', '#7dd3fc',
-            'brick', '#b45309',
-            'stone', '#94a3b8',
-            'concrete', '#cbd5e1',
+            'glass', '#93c5fd',
+            'mirror', '#cbd5e1',
+            'brick', '#c2410c',
+            'stone', '#d6d3d1',
+            'concrete', '#e5e7eb',
             'wood', '#d97706',
-            'metal', '#64748b',
+            'metal', '#94a3b8',
             [
               'interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 15],
-              0, '#f1f5f9',
-              15, '#e2e8f0',
-              35, '#cbd5e1',
-              80, '#94a3b8',
-              150, '#38bdf8',
-              300, '#0284c7',
-              500, '#0369a1'
+              0, '#f5f5f4',     // Warm off-white / light stone
+              18, '#e7e5e4',    // Limestone low-rise
+              40, '#e2e8f0',    // Commercial limestone
+              90, '#cbd5e1',    // Mid-rise granite
+              180, '#94a3b8',   // Slate architectural high-rise
+              320, '#64748b',   // Steel & tinted glass tower
+              500, '#475569'    // Supertall crown
             ]
           ]
         ],
@@ -110,14 +121,24 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
           ['get', 'min_height'],
           0
         ],
-        'fill-extrusion-opacity': 0.94
+        'fill-extrusion-opacity': 1.0 // 100% Solid opaque - realistic architecture
+      }
+    },
+    {
+      id: 'map-labels-overlay',
+      type: 'raster',
+      source: 'carto-labels',
+      minzoom: 0,
+      maxzoom: 20,
+      paint: {
+        'raster-opacity': 0.95
       }
     }
   ]
 };
 
 // -------------------------------------------------------------
-// Dark Matter 3D Thermal Twin Style
+// Dark Matter 3D Thermal Twin Style With Labels
 // -------------------------------------------------------------
 const DARK_MATTER_3D_STYLE: StyleSpecification = {
   version: 8,
@@ -141,7 +162,7 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
   light: {
     anchor: 'viewport',
     color: '#93c5fd',
-    intensity: 0.50,
+    intensity: 0.65,
     position: [1.2, 210, 55]
   },
   layers: [
@@ -157,7 +178,7 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
       type: 'fill-extrusion',
       source: 'openmaptiles',
       'source-layer': 'building',
-      minzoom: 9, // Visible from zoom 9 all the way in to zoom 20!
+      minzoom: 9,
       paint: {
         'fill-extrusion-color': [
           'interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 15],
@@ -180,7 +201,7 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
           ['get', 'min_height'],
           0
         ],
-        'fill-extrusion-opacity': 0.88
+        'fill-extrusion-opacity': 0.95
       }
     }
   ]
@@ -198,11 +219,35 @@ export default function MapViewer({
   const map = useRef<MapLibreMap | null>(null);
   const isInitialMount = useRef(true);
   const orbitFrameId = useRef<number | null>(null);
+  const landmarkMarkerRef = useRef<Marker | null>(null);
 
-  // 3D Camera & Viewer State (Smoothly clamped between 0° and 60° max)
+  // Latest props stored in ref for stable access
+  const propsRef = useRef({
+    selectedCity,
+    readings,
+    buildings,
+    activeLayers,
+    onSelectHex,
+    onSelectBuilding
+  });
+
+  useEffect(() => {
+    propsRef.current = {
+      selectedCity,
+      readings,
+      buildings,
+      activeLayers,
+      onSelectHex,
+      onSelectBuilding
+    };
+  });
+
+  // 3D Camera & Viewer Telemetry State (Exact Google Earth HUD values)
   const [is3D, setIs3D] = useState(true);
   const [isOrbiting, setIsOrbiting] = useState(false);
   const [currentPitch, setCurrentPitch] = useState(60);
+  const [currentBearing, setCurrentBearing] = useState(selectedCity.coordinates.bearing || -25);
+  const [currentZoom, setCurrentZoom] = useState(selectedCity.coordinates.zoom || 14.5);
 
   // Hover Tooltip Info
   const [hoveredInfo, setHoveredInfo] = useState<{
@@ -212,14 +257,17 @@ export default function MapViewer({
     data: any;
   } | null>(null);
 
-  // Helper to synchronize all thermal and asset layers
-  const syncMapLayers = useCallback((
-    m: MapLibreMap,
-    thermalReadings: FortyGuardReading[],
-    auditedBuildings: AuditedBuilding[],
-    layers: typeof activeLayers
-  ) => {
-    if (!m.isStyleLoaded()) return;
+  // Core synchronization function that updates map layers based on current state
+  const syncMapLayers = useCallback(() => {
+    const m = map.current;
+    if (!m || !m.isStyleLoaded()) return;
+
+    const {
+      readings: thermalReadings,
+      buildings: auditedBuildings,
+      activeLayers: layers,
+      selectedCity: currentLocation
+    } = propsRef.current;
 
     // Toggle 3D city vector buildings
     if (m.getLayer('city-3d-buildings')) {
@@ -230,13 +278,44 @@ export default function MapViewer({
       );
     }
 
+    // Toggle Labels
+    if (m.getLayer('map-labels-overlay')) {
+      m.setLayoutProperty('map-labels-overlay', 'visibility', 'visible');
+    }
+
+    // -------------------------------------------------------------
+    // 0. Architectural 3D Stepped Meshes for Iconic Landmarks (Empire State, etc.)
+    // -------------------------------------------------------------
+    const landmarksGeoJSON = getLandmark3DGeoJSON();
+    const existingLandmarkSource = m.getSource('iconic-landmarks-source') as GeoJSONSource | undefined;
+    if (existingLandmarkSource) {
+      existingLandmarkSource.setData(landmarksGeoJSON);
+    } else {
+      m.addSource('iconic-landmarks-source', {
+        type: 'geojson',
+        data: landmarksGeoJSON
+      });
+
+      m.addLayer({
+        id: 'iconic-landmarks-3d-mesh',
+        type: 'fill-extrusion',
+        source: 'iconic-landmarks-source',
+        paint: {
+          'fill-extrusion-color': ['get', 'color'],
+          'fill-extrusion-base': ['get', 'minHeight'],
+          'fill-extrusion-height': ['get', 'height'],
+          'fill-extrusion-opacity': 1.0
+        }
+      });
+    }
+
     // -------------------------------------------------------------
     // 1. Build H3 Thermal Hexagon Prisms GeoJSON
     // -------------------------------------------------------------
     const hexFeatures: GeoJSON.Feature[] = thermalReadings.map(r => {
       const polygonCoords = H3Service.cellToGeoJSONPolygon(r.h3Index);
       const color = getThermalColorRgba(r.temp2mF);
-      const colorRgbaStr = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${r.isHotspot ? 0.90 : 0.65})`;
+      const colorRgbaStr = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${r.isHotspot ? 0.88 : 0.60})`;
 
       return {
         type: 'Feature',
@@ -282,7 +361,7 @@ export default function MapViewer({
           'fill-extrusion-color': ['get', 'color'],
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.88
+          'fill-extrusion-opacity': 0.85
         }
       });
 
@@ -319,8 +398,8 @@ export default function MapViewer({
       m.on('click', 'h3-thermal-extrusion', (e) => {
         if (!e.features || !e.features[0]) return;
         const hexId = e.features[0].properties?.h3Index;
-        const found = thermalReadings.find(r => r.h3Index === hexId);
-        if (found && onSelectHex) onSelectHex(found);
+        const found = propsRef.current.readings.find(r => r.h3Index === hexId);
+        if (found && propsRef.current.onSelectHex) propsRef.current.onSelectHex(found);
       });
     }
 
@@ -356,7 +435,7 @@ export default function MapViewer({
         ? '#ef4444' 
         : b.currentAlbedo < 0.25 
         ? '#f97316' 
-        : '#06b6d4';
+        : '#0ea5e9';
 
       return {
         type: 'Feature',
@@ -403,7 +482,7 @@ export default function MapViewer({
           'fill-extrusion-color': ['get', 'color'],
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.96
+          'fill-extrusion-opacity': 0.98
         }
       });
 
@@ -427,8 +506,8 @@ export default function MapViewer({
       m.on('click', 'audited-buildings-extrusion', (e) => {
         if (!e.features || !e.features[0]) return;
         const bldgId = e.features[0].properties?.id;
-        const found = auditedBuildings.find(b => b.id === bldgId);
-        if (found && onSelectBuilding) onSelectBuilding(found);
+        const found = propsRef.current.buildings.find(b => b.id === bldgId);
+        if (found && propsRef.current.onSelectBuilding) propsRef.current.onSelectBuilding(found);
       });
     }
 
@@ -520,7 +599,32 @@ export default function MapViewer({
         layers.treeCanopy ? 'visible' : 'none'
       );
     }
-  }, [onSelectHex, onSelectBuilding]);
+
+    // -------------------------------------------------------------
+    // 4. Google Earth Style Purple Floating Landmark Marker Pin
+    // -------------------------------------------------------------
+    if (landmarkMarkerRef.current) {
+      landmarkMarkerRef.current.remove();
+      landmarkMarkerRef.current = null;
+    }
+
+    const markerEl = document.createElement('div');
+    markerEl.className = 'group cursor-pointer pointer-events-auto flex items-center gap-1.5 bg-white text-slate-900 shadow-2xl rounded-full pl-3 pr-1.5 py-1 border border-purple-400/80 ring-4 ring-purple-500/20 backdrop-blur-md transition-transform hover:scale-105';
+    markerEl.innerHTML = `
+      <span class="text-xs font-bold font-sans tracking-tight">${currentLocation.name}</span>
+      <div class="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+          <circle cx="12" cy="13" r="3"/>
+        </svg>
+      </div>
+    `;
+
+    landmarkMarkerRef.current = new Marker({ element: markerEl, anchor: 'bottom' })
+      .setLngLat([currentLocation.coordinates.longitude, currentLocation.coordinates.latitude])
+      .addTo(m);
+
+  }, []);
 
   // Initialize MapLibre GL Map Instance (With pitch clamped to 60° max)
   useEffect(() => {
@@ -543,17 +647,22 @@ export default function MapViewer({
       pitchWithRotate: true
     });
 
-    mapInstance.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
-    mapInstance.addControl(new ScaleControl(), 'bottom-right');
-    mapInstance.addControl(new AttributionControl({ compact: true }), 'bottom-left');
-
     mapInstance.on('load', () => {
-      syncMapLayers(mapInstance, readings, buildings, activeLayers);
+      syncMapLayers();
     });
 
+    // Real-time telemetry tracking for HUD
     mapInstance.on('pitch', () => {
       const p = Math.min(60, Math.round(mapInstance.getPitch()));
       setCurrentPitch(p);
+    });
+
+    mapInstance.on('rotate', () => {
+      setCurrentBearing(Math.round(mapInstance.getBearing()));
+    });
+
+    mapInstance.on('zoom', () => {
+      setCurrentZoom(mapInstance.getZoom());
     });
 
     map.current = mapInstance;
@@ -562,9 +671,12 @@ export default function MapViewer({
       if (orbitFrameId.current) {
         cancelAnimationFrame(orbitFrameId.current);
       }
+      if (landmarkMarkerRef.current) {
+        landmarkMarkerRef.current.remove();
+      }
       mapInstance.remove();
     };
-  }, []);
+  }, [syncMapLayers]);
 
   // Update camera center smoothly when the selected city changes
   const cityId = selectedCity.id;
@@ -586,6 +698,7 @@ export default function MapViewer({
   }, [cityId, lng, lat, zoom, bearing]);
 
   // Handle dynamic map style switching (Google Earth 3D Satellite vs Dark Matter Thermal)
+  const isSatellite = activeLayers.satellite;
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -593,12 +706,10 @@ export default function MapViewer({
     }
     if (!map.current) return;
 
-    const targetStyle = activeLayers.satellite ? GOOGLE_EARTH_3D_STYLE : DARK_MATTER_3D_STYLE;
+    const targetStyle = isSatellite ? GOOGLE_EARTH_3D_STYLE : DARK_MATTER_3D_STYLE;
 
     const handleStyleLoad = () => {
-      if (map.current) {
-        syncMapLayers(map.current, readings, buildings, activeLayers);
-      }
+      syncMapLayers();
     };
 
     map.current.once('style.load', handleStyleLoad);
@@ -609,13 +720,13 @@ export default function MapViewer({
         map.current.off('style.load', handleStyleLoad);
       }
     };
-  }, [activeLayers.satellite, syncMapLayers, readings, buildings, activeLayers]);
+  }, [isSatellite, syncMapLayers]);
 
   // Update layers when data or layer toggles change
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
-    syncMapLayers(map.current, readings, buildings, activeLayers);
-  }, [readings, buildings, activeLayers, syncMapLayers]);
+    syncMapLayers();
+  }, [readings, buildings, activeLayers, selectedCity, syncMapLayers]);
 
   // 3D Perspective Mode Toggle (0° Orthographic Plan vs 60° 3D Google Earth Tilt)
   const handleToggle3D = () => {
@@ -635,22 +746,22 @@ export default function MapViewer({
     setIs3D(true);
     map.current.flyTo({
       pitch: 60, // smoothly stops at 60 degrees
-      zoom: 16.2,
+      zoom: 16.5,
       bearing: map.current.getBearing() + 35,
       duration: 1500
     });
   };
 
-  // Adjust Pitch Tilt (smoothly clamped between 0° and 60°)
-  const handleAdjustPitch = (delta: number) => {
+  // Recenter Camera on Selected Landmark
+  const handleRecenter = () => {
     if (!map.current) return;
-    const newPitch = Math.min(60, Math.max(0, map.current.getPitch() + delta));
-    map.current.easeTo({
-      pitch: newPitch,
-      duration: 350
+    map.current.flyTo({
+      center: [selectedCity.coordinates.longitude, selectedCity.coordinates.latitude],
+      zoom: selectedCity.coordinates.zoom || 15.5,
+      pitch: 60,
+      bearing: selectedCity.coordinates.bearing || -25,
+      duration: 1500
     });
-    setCurrentPitch(newPitch);
-    setIs3D(newPitch > 10);
   };
 
   // Reset North Compass
@@ -660,6 +771,18 @@ export default function MapViewer({
       bearing: 0,
       duration: 500
     });
+    setCurrentBearing(0);
+  };
+
+  // Zoom In / Out
+  const handleZoomIn = () => {
+    if (!map.current) return;
+    map.current.zoomIn({ duration: 300 });
+  };
+
+  const handleZoomOut = () => {
+    if (!map.current) return;
+    map.current.zoomOut({ duration: 300 });
   };
 
   // Cinematic 360 Orbit Animation
@@ -671,8 +794,9 @@ export default function MapViewer({
     if (nextOrbit) {
       const rotateCamera = () => {
         if (!map.current) return;
-        const currentBearing = map.current.getBearing();
-        map.current.setBearing((currentBearing + 0.16) % 360);
+        const currentB = map.current.getBearing();
+        map.current.setBearing((currentB + 0.16) % 360);
+        setCurrentBearing(Math.round(map.current.getBearing()));
         orbitFrameId.current = requestAnimationFrame(rotateCamera);
       };
       orbitFrameId.current = requestAnimationFrame(rotateCamera);
@@ -689,19 +813,22 @@ export default function MapViewer({
       {/* WebGL Canvas Container */}
       <div ref={mapContainer} className="w-full h-full" />
 
-      {/* Floating Google Earth 3D Navigation Controls */}
-      <div className="absolute top-20 left-6 z-20 hidden md:block">
-        <Map3DControls
-          is3D={is3D}
-          isOrbiting={isOrbiting}
-          currentPitch={currentPitch}
-          onToggle3D={handleToggle3D}
-          onToggleOrbit={handleToggleOrbit}
-          onAdjustPitch={handleAdjustPitch}
-          onResetNorth={handleResetNorth}
-          onStreetLevelView={handleStreetLevelView}
-        />
-      </div>
+      {/* Google Earth Style 3D Navigation Controls Dock & Telemetry HUD */}
+      <GoogleEarthHUD
+        selectedCity={selectedCity}
+        is3D={is3D}
+        currentPitch={currentPitch}
+        currentBearing={currentBearing}
+        currentZoom={currentZoom}
+        onToggle3D={handleToggle3D}
+        onStreetLevelView={handleStreetLevelView}
+        onRecenter={handleRecenter}
+        onResetNorth={handleResetNorth}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onToggleOrbit={handleToggleOrbit}
+        isOrbiting={isOrbiting}
+      />
 
       {/* Interactive 3D Tooltip */}
       {hoveredInfo && (
@@ -709,72 +836,72 @@ export default function MapViewer({
           className="absolute z-40 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-4 transition-all duration-75"
           style={{ left: hoveredInfo.x, top: hoveredInfo.y }}
         >
-          <div className="bg-slate-950/95 text-white text-xs p-3.5 rounded-2xl shadow-2xl border border-slate-700/80 backdrop-blur-xl min-w-[240px] ring-1 ring-white/10">
+          <div className="bg-white/95 text-slate-900 text-xs p-3.5 rounded-2xl shadow-2xl border border-slate-200/90 backdrop-blur-xl min-w-[240px] ring-1 ring-slate-900/5 font-sans">
             {hoveredInfo.type === 'hex' ? (
               <div>
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    <span className="font-bold text-blue-400">H3 Hex {hoveredInfo.data.h3Index?.slice(-6)}</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="font-bold text-blue-600">H3 Hex {hoveredInfo.data.h3Index?.slice(-6)}</span>
                   </div>
                   {hoveredInfo.data.isHotspot && (
-                    <span className="bg-red-500/20 text-red-300 font-extrabold px-2 py-0.5 rounded-full text-[10px] border border-red-500/40">
+                    <span className="bg-red-50 text-red-600 font-extrabold px-2 py-0.5 rounded-full text-[10px] border border-red-200">
                       HOTSPOT
                     </span>
                   )}
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">2m Ambient Air:</span>
-                    <span className="font-extrabold text-amber-300">{hoveredInfo.data.temp2mF}°F ({hoveredInfo.data.temp2mC}°C)</span>
+                    <span className="text-slate-500">2m Ambient Air:</span>
+                    <span className="font-extrabold text-amber-600">{hoveredInfo.data.temp2mF}°F ({hoveredInfo.data.temp2mC}°C)</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Satellite Skin LST:</span>
-                    <span className="text-slate-300">{hoveredInfo.data.surfaceTempF}°F</span>
+                    <span className="text-slate-500">Satellite Skin LST:</span>
+                    <span className="text-slate-700 font-medium">{hoveredInfo.data.surfaceTempF}°F</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Surface Disparity:</span>
-                    <span className="text-red-400 font-bold">+{hoveredInfo.data.disparityF}°F</span>
+                    <span className="text-slate-500">Surface Disparity:</span>
+                    <span className="text-red-600 font-bold">+{hoveredInfo.data.disparityF}°F</span>
                   </div>
                   {hoveredInfo.data.isHotspot && (
-                    <div className="flex justify-between text-[11px] pt-1 border-t border-slate-800">
-                      <span className="text-slate-400">Spike Anomaly:</span>
-                      <span className="text-orange-300 font-semibold">+{hoveredInfo.data.spikeDeltaF}°F</span>
+                    <div className="flex justify-between text-[11px] pt-1 border-t border-slate-100">
+                      <span className="text-slate-500">Spike Anomaly:</span>
+                      <span className="text-orange-600 font-semibold">+{hoveredInfo.data.spikeDeltaF}°F</span>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                    <span className="font-bold text-emerald-400">{hoveredInfo.data.name || 'Building Envelope'}</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="font-bold text-emerald-700">{hoveredInfo.data.name || 'Building Envelope'}</span>
                   </div>
-                  <span className="bg-orange-500/20 text-orange-300 font-bold px-2 py-0.5 rounded-full text-[10px] border border-orange-500/40">
+                  <span className="bg-orange-50 text-orange-700 font-bold px-2 py-0.5 rounded-full text-[10px] border border-orange-200">
                     Priority {hoveredInfo.data.priorityScore}/100
                   </span>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Roof Footprint:</span>
-                    <span className="font-semibold text-slate-200">{hoveredInfo.data.roofAreaSqm?.toLocaleString()} m²</span>
+                    <span className="text-slate-500">Roof Footprint:</span>
+                    <span className="font-semibold text-slate-800">{hoveredInfo.data.roofAreaSqm?.toLocaleString()} m²</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Building Height:</span>
-                    <span className="font-semibold text-slate-200">{hoveredInfo.data.height}m (3D Extruded)</span>
+                    <span className="text-slate-500">Building Height:</span>
+                    <span className="font-semibold text-slate-800">{hoveredInfo.data.height}m (3D Extruded)</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Current Albedo:</span>
-                    <span className="font-bold text-red-300">{hoveredInfo.data.currentAlbedo} (Low)</span>
+                    <span className="text-slate-500">Current Albedo:</span>
+                    <span className="font-bold text-red-600">{hoveredInfo.data.currentAlbedo} (Low)</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">50m Tree Canopy:</span>
-                    <span className="font-bold text-amber-300">{hoveredInfo.data.canopy50mCoveragePct}% (Deficit)</span>
+                    <span className="text-slate-500">50m Tree Canopy:</span>
+                    <span className="font-bold text-amber-600">{hoveredInfo.data.canopy50mCoveragePct}% (Deficit)</span>
                   </div>
-                  <div className="flex justify-between pt-1 border-t border-slate-800">
-                    <span className="text-slate-400">Cooling Penalty:</span>
-                    <span className="font-extrabold text-red-400">+{hoveredInfo.data.hvacPenaltyKw} kW</span>
+                  <div className="flex justify-between pt-1 border-t border-slate-100">
+                    <span className="text-slate-500">Cooling Penalty:</span>
+                    <span className="font-extrabold text-red-600">+{hoveredInfo.data.hvacPenaltyKw} kW</span>
                   </div>
                 </div>
               </div>

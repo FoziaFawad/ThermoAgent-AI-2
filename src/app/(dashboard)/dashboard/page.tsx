@@ -9,9 +9,9 @@ const MapViewer = dynamic(() => import('../../../components/map/MapViewer'), {
   loading: () => (
     <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3">
       <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center animate-pulse">
-        <div className="w-6 h-6 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+        <div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
       </div>
-      <span className="text-xs font-semibold tracking-wider text-slate-300">Initializing Google Earth 3D Digital Twin...</span>
+      <span className="text-xs font-semibold tracking-wider text-slate-300">Initializing 3D Environmental Insights Explorer...</span>
     </div>
   )
 });
@@ -38,7 +38,7 @@ export default function DashboardPage() {
 
   // Right sidebar drawer tab and collapse state
   const [sidebarTab, setSidebarTab] = useState<'layers' | 'mitigation'>('layers');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Collapsed by default for clean map view
 
   // Simulation parameters
   const [targetAlbedo, setTargetAlbedo] = useState(0.85);
@@ -117,7 +117,7 @@ export default function DashboardPage() {
       });
 
       if (!response.body) {
-        throw new Error('ReadableStream not supported on this browser.');
+        throw new Error('No response body from multi-agent streaming endpoint');
       }
 
       const reader = response.body.getReader();
@@ -132,74 +132,83 @@ export default function DashboardPage() {
         const lines = buffer.split('\n\n');
         buffer = lines.pop() || '';
 
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const eventMatch = line.match(/^event:\s*(.+)$/m);
-          const dataMatch = line.match(/^data:\s*(.+)$/m);
+        for (const block of lines) {
+          if (!block.trim()) continue;
+          const eventMatch = block.match(/event: (.*)/);
+          const dataMatch = block.match(/data: (.*)/);
 
-          if (dataMatch) {
-            try {
-              const data = JSON.parse(dataMatch[1]);
-              const eventType = eventMatch ? eventMatch[1] : 'message';
+          if (eventMatch && dataMatch) {
+            const eventType = eventMatch[1];
+            const data = JSON.parse(dataMatch[1]);
 
-              if (data.message) {
-                setAgentLogs(prev => [
-                  ...prev,
-                  {
-                    id: Math.random().toString(),
-                    timestamp: data.timestamp || new Date().toISOString(),
-                    agent: data.agent || 'supervisor',
-                    agentName: data.agentName || 'Master Orchestrator',
-                    status: data.status || 'running',
-                    message: data.message,
-                    metrics: data.data
-                  }
-                ]);
-              }
-
-              if (data.data?.readings) {
-                setReadings(data.data.readings);
-              }
-              if (data.data?.buildings) {
-                setBuildings(data.data.buildings);
-              }
-              if (eventType === 'complete' && data.executiveMemo) {
-                setExecutiveMemo(data.executiveMemo);
-              }
-            } catch (err) {
-              console.error('Failed to parse SSE line:', err);
+            if (eventType === 'agent_start' || eventType === 'agent_step') {
+              setAgentLogs(prev => [
+                ...prev,
+                {
+                  id: `log-${Date.now()}-${Math.random()}`,
+                  agent: data.agent,
+                  agentName: data.agentName,
+                  status: data.status,
+                  message: data.message,
+                  timestamp: data.timestamp
+                }
+              ]);
+            } else if (eventType === 'complete') {
+              setExecutiveMemo(data.executiveMemo);
+              setIsAgentRunning(false);
             }
           }
         }
       }
-    } catch (err) {
-      console.error('Workflow error:', err);
-    } finally {
+    } catch (err: any) {
+      console.error('SSE Stream Error:', err);
+      setAgentLogs(prev => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          agent: 'supervisor',
+          agentName: 'System Error',
+          status: 'failed',
+          message: err.message || 'Stream connection failed.',
+          timestamp: new Date().toISOString()
+        }
+      ]);
       setIsAgentRunning(false);
     }
   };
 
+  // Toggle individual layers
   const toggleLayer = (layer: keyof typeof activeLayers) => {
-    setActiveLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
+    setActiveLayers(prev => ({
+      ...prev,
+      [layer]: !prev[layer]
+    }));
   };
 
-  // Real-time Thermodynamic & Financial ROI calculation
-  const totalRoofArea = buildings.reduce((acc, b) => acc + b.roofAreaSqm, 0) || 15000;
-  const cooling = calculateTotalCoolingDelta(totalRoofArea, 0.15, targetAlbedo, addedCanopySqm);
-  const roi = calculateEnergyAndROI(totalRoofArea, addedCanopySqm);
+  // Derived calculations
+  const totalRoofArea = buildings.reduce((acc, b) => acc + b.roofAreaSqm, 0);
+  const cooling = calculateTotalCoolingDelta(totalRoofArea || 20000, 0.15, targetAlbedo, addedCanopySqm);
+  const roi = calculateEnergyAndROI(totalRoofArea || 20000, addedCanopySqm);
 
-  const peakAirTempF = readings.length > 0 ? Math.max(...readings.map(r => r.temp2mF)) : selectedCity.baselineAirTempF + 4.5;
-  const avgDisparityF = readings.length > 0 
-    ? (readings.reduce((acc, r) => acc + r.disparityF, 0) / readings.length).toFixed(1) 
-    : '18.2';
+  const peakAirTempF = readings.length > 0
+    ? Math.max(...readings.map(r => r.temp2mF))
+    : selectedCity.baselineAirTempF;
+
+  const avgDisparityF = readings.length > 0
+    ? Number((readings.reduce((acc, r) => acc + r.disparityF, 0) / readings.length).toFixed(1))
+    : 18.5;
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950">
-      {/* Top Floating Glass Navbar */}
+      {/* Google EIE Clean Light Header Navbar */}
       <Navbar
         selectedCity={selectedCity}
         onSelectCity={setSelectedCity}
         isAgentRunning={isAgentRunning}
+        onToggleLayers={() => setIsSidebarOpen(prev => !prev)}
+        onToggle3D={() => toggleLayer('buildings3D')}
+        onRunAgent={handleRunAgentWorkflow}
+        onResetView={() => setSelectedCity({ ...selectedCity })}
       />
 
       {/* Full Viewport 3D WebGL Digital Twin Map */}
@@ -212,53 +221,53 @@ export default function DashboardPage() {
         onSelectBuilding={(bldg) => console.log('Selected Building:', bldg)}
       />
 
-      {/* Top HUD Metric Bar (Clean, Centered/Left Minimalist Glass Pill) */}
-      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden lg:block">
-        <div className="pointer-events-auto bg-slate-900/85 backdrop-blur-xl border border-slate-700/60 shadow-2xl rounded-2xl px-5 py-2 flex items-center gap-6 text-xs text-white">
-          <div className="flex items-center gap-2.5 pr-4 border-r border-slate-800">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <Flame size={15} />
+      {/* Top HUD Metric Bar (Google EIE Clean White Pill) */}
+      <div className="absolute top-20 left-8 z-20 pointer-events-none hidden lg:block">
+        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-xl shadow-slate-900/5 rounded-2xl px-4 py-2 flex items-center gap-5 text-xs text-slate-800 ring-1 ring-slate-900/5 font-sans">
+          <div className="flex items-center gap-2 pr-4 border-r border-slate-100">
+            <div className="w-7 h-7 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+              <Flame size={14} />
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 font-medium">2m Ambient Air Peak</div>
-              <div className="font-extrabold text-amber-300 font-mono text-sm">{peakAirTempF}°F</div>
+              <div className="text-[10px] text-slate-500 font-medium">2m Ambient Air Peak</div>
+              <div className="font-extrabold text-amber-700 font-mono text-sm">{peakAirTempF}°F</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 pr-4 border-r border-slate-800">
-            <div className="w-7 h-7 rounded-lg bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
-              <ThermometerSun size={15} />
+          <div className="flex items-center gap-2 pr-4 border-r border-slate-100">
+            <div className="w-7 h-7 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+              <ThermometerSun size={14} />
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 font-medium">LST Surface Disparity</div>
-              <div className="font-extrabold text-red-400 font-mono text-sm">+{avgDisparityF}°F</div>
+              <div className="text-[10px] text-slate-500 font-medium">LST Surface Disparity</div>
+              <div className="font-extrabold text-red-600 font-mono text-sm">+{avgDisparityF}°F</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-              <Building2 size={15} />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+              <Building2 size={14} />
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 font-medium">Audited Assets</div>
-              <div className="font-extrabold text-slate-100 text-sm">{buildings.length} Envelopes ({totalRoofArea.toLocaleString()} m²)</div>
+              <div className="text-[10px] text-slate-500 font-medium">Audited Assets</div>
+              <div className="font-extrabold text-slate-900 text-sm">{buildings.length} Envelopes ({totalRoofArea.toLocaleString()} m²)</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right-Side Command Drawer (Clean Tabbed Glassmorphism Dock) */}
-      <div className="absolute top-16 right-4 sm:right-6 z-20 pointer-events-none max-h-[calc(100vh-80px)] flex flex-col">
-        <div className="pointer-events-auto flex flex-col gap-2 w-80 sm:w-96 max-h-[calc(100vh-80px)] overflow-y-auto pb-4 pr-1">
+      {/* Right-Side Command Drawer (Google EIE Light Theme Dock) */}
+      <div className="absolute top-20 right-6 z-20 pointer-events-none max-h-[calc(100vh-95px)] flex flex-col">
+        <div className="pointer-events-auto flex flex-col gap-2 w-80 sm:w-96 max-h-[calc(100vh-95px)] overflow-y-auto pb-4 pr-1 font-sans">
           {/* Tab Selector & Collapse Button */}
-          <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/60 shadow-xl rounded-2xl p-1.5 flex items-center justify-between text-xs text-white">
+          <div className="bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-xl rounded-2xl p-1.5 flex items-center justify-between text-xs text-slate-700 ring-1 ring-slate-900/5">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => { setSidebarTab('layers'); setIsSidebarOpen(true); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
                   isSidebarOpen && sidebarTab === 'layers'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Layers size={13} />
@@ -269,8 +278,8 @@ export default function DashboardPage() {
                 onClick={() => { setSidebarTab('mitigation'); setIsSidebarOpen(true); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
                   isSidebarOpen && sidebarTab === 'mitigation'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Sliders size={13} />
@@ -280,7 +289,7 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               title={isSidebarOpen ? 'Minimize Drawer' : 'Expand Drawer'}
             >
               {isSidebarOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -324,17 +333,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom-Left Multi-Agent Terminal Console */}
-      <div className="absolute bottom-6 left-4 sm:left-6 z-20 w-80 sm:w-96 max-w-[calc(100vw-2rem)] pointer-events-none">
-        <div className="pointer-events-auto">
-          <AgentTerminal
-            logs={agentLogs}
-            isRunning={isAgentRunning}
-            onRunWorkflow={handleRunAgentWorkflow}
-            executiveMemo={executiveMemo}
-          />
-        </div>
-      </div>
+      {/* Autonomous Multi-Agent Streaming Execution Terminal */}
+      <AgentTerminal
+        logs={agentLogs}
+        isRunning={isAgentRunning}
+        onRunAgent={handleRunAgentWorkflow}
+        executiveMemo={executiveMemo}
+      />
     </div>
   );
 }
