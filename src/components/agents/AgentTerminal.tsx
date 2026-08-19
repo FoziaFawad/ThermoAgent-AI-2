@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal, CheckCircle2, Loader2, Sparkles, ChevronDown, ChevronUp, FileText, Bot } from 'lucide-react';
+import { Terminal, Loader2, Sparkles, ChevronDown, ChevronUp, FileText, Bot, CheckCircle2 } from 'lucide-react';
 import { AgentLogEntry } from '../../types/agent';
 
 interface AgentTerminalProps {
@@ -28,18 +28,18 @@ export default function AgentTerminal({
   }, [logs]);
 
   return (
-    <div className="bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 flex flex-col">
+    <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/60 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 flex flex-col text-white">
       {/* Header Bar */}
-      <div className="bg-slate-900 px-4 py-3 text-white flex items-center justify-between">
+      <div className="bg-slate-950/80 px-4 py-2.5 text-white flex items-center justify-between border-b border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 rounded-lg bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-blue-400">
-            <Bot size={15} />
+          <div className="w-6 h-6 rounded-lg bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-cyan-400">
+            <Bot size={14} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold tracking-tight">Autonomous Multi-Agent DAG</span>
+              <span className="text-xs font-bold tracking-tight text-slate-100">Autonomous Multi-Agent DAG</span>
               {isRunning && (
-                <span className="flex items-center gap-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                <span className="flex items-center gap-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/40">
                   <Loader2 size={10} className="animate-spin" />
                   Reasoning
                 </span>
@@ -53,7 +53,7 @@ export default function AgentTerminal({
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
-            title={isExpanded ? 'Collapse' : 'Expand'}
+            title={isExpanded ? 'Collapse Terminal' : 'Expand Terminal'}
           >
             {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
@@ -61,22 +61,22 @@ export default function AgentTerminal({
       </div>
 
       {isExpanded && (
-        <div className="p-3 flex flex-col gap-3">
+        <div className="p-3 flex flex-col gap-2.5">
           {/* Action Trigger Button */}
           <div className="flex items-center gap-2">
             <button
               onClick={onRunWorkflow}
               disabled={isRunning}
-              className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-xs shadow-md transition-all ${
+              className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-xs shadow-lg transition-all ${
                 isRunning
-                  ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white shadow-blue-500/25'
+                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white shadow-blue-500/25 border border-blue-400/30'
               }`}
             >
               {isRunning ? (
                 <>
-                  <Loader2 size={14} className="animate-spin text-blue-600" />
-                  <span>Executing Agent Reasoning Chain...</span>
+                  <Loader2 size={14} className="animate-spin text-cyan-400" />
+                  <span>Executing 5-Agent DAG Chain...</span>
                 </>
               ) : (
                 <>
@@ -91,8 +91,8 @@ export default function AgentTerminal({
                 onClick={() => setShowMemo(!showMemo)}
                 className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors ${
                   showMemo
-                    ? 'bg-blue-50 border-blue-300 text-blue-700'
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-500/30'
+                    : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
                 }`}
                 title="View Municipal Executive Memo"
               >
@@ -104,12 +104,12 @@ export default function AgentTerminal({
 
           {/* Executive Memo Modal / Drawer */}
           {showMemo && executiveMemo && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 space-y-2 max-h-60 overflow-y-auto font-sans leading-relaxed">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 font-bold text-blue-900">
+            <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 space-y-2 max-h-56 overflow-y-auto font-sans leading-relaxed shadow-inner">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 font-bold text-cyan-400">
                 <span>Executive Municipal Memo (Synthesizer Output)</span>
-                <button onClick={() => setShowMemo(false)} className="text-slate-400 hover:text-slate-700 text-xs">✕</button>
+                <button onClick={() => setShowMemo(false)} className="text-slate-400 hover:text-white text-xs">✕</button>
               </div>
-              <div className="whitespace-pre-line text-slate-700 text-[11px]">
+              <div className="whitespace-pre-line text-slate-300 text-[11px]">
                 {executiveMemo}
               </div>
             </div>
@@ -118,19 +118,19 @@ export default function AgentTerminal({
           {/* Streaming Log Sequence */}
           <div
             ref={logContainerRef}
-            className="bg-slate-950 text-slate-200 rounded-xl p-3 max-h-56 overflow-y-auto space-y-2.5 font-mono text-[11px] border border-slate-800 shadow-inner"
+            className="bg-slate-950/80 text-slate-200 rounded-xl p-3 max-h-48 overflow-y-auto space-y-2 font-mono text-[11px] border border-slate-800/80 shadow-inner"
           >
             {logs.length === 0 ? (
-              <div className="text-slate-500 text-center py-4 flex flex-col items-center gap-1">
-                <Terminal size={18} className="text-slate-600" />
-                <span>Ready to orchestrate municipal thermal inspection.</span>
-                <span className="text-[10px] text-slate-600">Click &ldquo;Trigger Autonomous Thermal Audit&rdquo; to begin.</span>
+              <div className="text-slate-500 text-center py-3 flex flex-col items-center gap-1">
+                <Terminal size={16} className="text-slate-600" />
+                <span>Ready to orchestrate municipal thermal audit.</span>
+                <span className="text-[10px] text-slate-600">Click &ldquo;Trigger Autonomous Thermal Audit&rdquo; to start.</span>
               </div>
             ) : (
               logs.map((log) => (
-                <div key={log.id} className="flex flex-col gap-0.5 border-l-2 border-blue-500/60 pl-2.5 py-0.5">
+                <div key={log.id} className="flex flex-col gap-0.5 border-l-2 border-cyan-500/70 pl-2.5 py-0.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                    <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
                       [{log.agentName}]
                     </span>
                     <span className="text-[9px] text-slate-500">

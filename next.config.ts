@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: [
+    "maplibre-gl",
     "react-map-gl",
     "@vis.gl/react-mapbox",
     "@deck.gl/react",

@@ -10,10 +10,15 @@ export async function POST(req: NextRequest) {
     body = await req.json();
   } catch {}
 
-  const cityId = body.cityId || 'abu-dhabi';
+  const cityId = body.cityId || 'new-york-ny';
   const targetAlbedo = body.targetAlbedo || 0.85;
   const addedCanopySqm = body.addedCanopySqm || 2500;
-  const preset = CITY_PRESETS.find(p => p.id === cityId) || CITY_PRESETS[0];
+  
+  const preset = CITY_PRESETS.find(p => p.id === cityId);
+  const targetLat = body.lat ?? (preset ? preset.coordinates.latitude : 40.7484);
+  const targetLng = body.lng ?? (preset ? preset.coordinates.longitude : -73.9851);
+  const cityName = body.cityName || (preset ? preset.name : cityId);
+  const baseAirTempF = body.baselineAirTempF ?? (preset ? preset.baselineAirTempF : 89.2);
 
   const encoder = new TextEncoder();
 
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
           agent: 'supervisor',
           agentName: 'Supervisor Agent (Master Orchestrator)',
           status: 'running',
-          message: `Ingesting municipal request for ${preset.name}. Dispatched autonomous inspection DAG to Sentinel Scanner.`,
+          message: `Ingesting municipal request for ${cityName}. Dispatched autonomous inspection DAG to Sentinel Scanner.`,
           timestamp: new Date().toISOString()
         });
         await delay(900);
@@ -47,7 +52,12 @@ export async function POST(req: NextRequest) {
         });
         await delay(1200);
 
-        const thermalFeed = await FortyGuardService.get2mThermalFeed(cityId);
+        const thermalFeed = await FortyGuardService.get2mThermalFeed(cityId, {
+          lat: targetLat,
+          lng: targetLng,
+          name: cityName,
+          baselineAirTempF: baseAirTempF
+        });
         const hotspotHexes = thermalFeed.readings.filter(r => r.isHotspot).map(r => r.h3Index);
 
         sendEvent('agent_step', {
@@ -76,8 +86,8 @@ export async function POST(req: NextRequest) {
 
         const buildings = await OSMService.getBuildingsForHotspots(
           cityId,
-          preset.coordinates.latitude,
-          preset.coordinates.longitude,
+          targetLat,
+          targetLng,
           hotspotHexes
         );
         const totalRoofArea = buildings.reduce((acc, b) => acc + b.roofAreaSqm, 0);
@@ -132,8 +142,8 @@ export async function POST(req: NextRequest) {
         await delay(1200);
 
         const executiveMemo = `### Executive Municipal Mitigation Brief
-**Target Jurisdiction:** ${preset.name}
-**Thermal Baseline:** ${preset.baselineAirTempF}°F (2m Human Breathing Zone)
+**Target Jurisdiction:** ${cityName}
+**Thermal Baseline:** ${baseAirTempF}°F (2m Human Breathing Zone)
 **Identified High-Risk Hotspots:** ${thermalFeed.hotspotCount} H3 Hexagonal Cells (Res-9)
 
 #### 1. Core Structural Deficiencies
@@ -143,7 +153,7 @@ export async function POST(req: NextRequest) {
 
 #### 2. Recommended Engineering Intervention
 - Apply high-albedo solar-reflective elastomeric coating (SRI ≥ 80, Albedo = ${targetAlbedo}) on all prioritized rooftops.
-- Install ${addedCanopySqm.toLocaleString()} m² of native arid-climate vegetative bioswales and street tree canopy.
+- Install ${addedCanopySqm.toLocaleString()} m² of native vegetative bioswales and street tree canopy.
 
 #### 3. Quantified Thermodynamic & Financial Impact
 - **Localized Ambient Cooling:** **-${cooling.totalDeltaF}°F** at the 2m pedestrian layer.
@@ -154,7 +164,7 @@ export async function POST(req: NextRequest) {
 
         sendEvent('complete', {
           status: 'completed',
-          summary: `Autonomous multi-agent pipeline completed successfully for ${preset.name}.`,
+          summary: `Autonomous multi-agent pipeline completed successfully for ${cityName}.`,
           executiveMemo,
           thermalFeed,
           buildings,

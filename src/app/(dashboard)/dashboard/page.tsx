@@ -1,8 +1,21 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import Navbar from '../../../components/layout/Navbar';
-import MapViewer from '../../../components/map/MapViewer';
+
+const MapViewer = dynamic(() => import('../../../components/map/MapViewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3">
+      <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center animate-pulse">
+        <div className="w-6 h-6 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+      </div>
+      <span className="text-xs font-semibold tracking-wider text-slate-300">Initializing Google Earth 3D Digital Twin...</span>
+    </div>
+  )
+});
+
 import LayerControlPanel from '../../../components/map/LayerControlPanel';
 import AgentTerminal from '../../../components/agents/AgentTerminal';
 import CoolRoofSlider from '../../../components/simulation/CoolRoofSlider';
@@ -13,7 +26,7 @@ import { FortyGuardReading } from '../../../types/fortyguard';
 import { AuditedBuilding } from '../../../types/simulation';
 import { AgentLogEntry } from '../../../types/agent';
 import { calculateTotalCoolingDelta, calculateEnergyAndROI } from '../../../lib/thermal-math';
-import { Flame, ShieldAlert, Sparkles, Building2, Trees, ThermometerSun, Zap } from 'lucide-react';
+import { Flame, Building2, ThermometerSun, Sliders, Layers, ChevronRight, ChevronLeft } from 'lucide-react';
 
 export default function DashboardPage() {
   const [selectedCity, setSelectedCity] = useState<CityPreset>(CITY_PRESETS[0]);
@@ -22,6 +35,10 @@ export default function DashboardPage() {
   const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [isAgentRunning, setIsAgentRunning] = useState(false);
   const [executiveMemo, setExecutiveMemo] = useState<string | undefined>(undefined);
+
+  // Right sidebar drawer tab and collapse state
+  const [sidebarTab, setSidebarTab] = useState<'layers' | 'mitigation'>('layers');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Simulation parameters
   const [targetAlbedo, setTargetAlbedo] = useState(0.85);
@@ -40,7 +57,15 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadCityData() {
       try {
-        const res = await fetch(`/api/fortyguard?city=${selectedCity.id}`);
+        const queryParams = new URLSearchParams({
+          city: selectedCity.id,
+          lat: selectedCity.coordinates.latitude.toString(),
+          lng: selectedCity.coordinates.longitude.toString(),
+          name: selectedCity.name,
+          temp: selectedCity.baselineAirTempF.toString()
+        });
+
+        const res = await fetch(`/api/fortyguard?${queryParams.toString()}`);
         if (res.ok) {
           const feed = await res.json();
           setReadings(feed.readings || []);
@@ -50,7 +75,13 @@ export default function DashboardPage() {
           const bldgRes = await fetch('/api/v1/audit-structures', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cityId: selectedCity.id, hotspotHexes })
+            body: JSON.stringify({
+              cityId: selectedCity.id,
+              lat: selectedCity.coordinates.latitude,
+              lng: selectedCity.coordinates.longitude,
+              cityName: selectedCity.name,
+              hotspotHexes
+            })
           });
           if (bldgRes.ok) {
             const bldgData = await bldgRes.json();
@@ -76,6 +107,10 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cityId: selectedCity.id,
+          lat: selectedCity.coordinates.latitude,
+          lng: selectedCity.coordinates.longitude,
+          cityName: selectedCity.name,
+          baselineAirTempF: selectedCity.baselineAirTempF,
           targetAlbedo,
           addedCanopySqm
         })
@@ -148,12 +183,11 @@ export default function DashboardPage() {
     setActiveLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
   };
 
-  // Thermodynamic & ROI Real-time Math
+  // Real-time Thermodynamic & Financial ROI calculation
   const totalRoofArea = buildings.reduce((acc, b) => acc + b.roofAreaSqm, 0) || 15000;
   const cooling = calculateTotalCoolingDelta(totalRoofArea, 0.15, targetAlbedo, addedCanopySqm);
   const roi = calculateEnergyAndROI(totalRoofArea, addedCanopySqm);
 
-  const hotspotCount = readings.filter(r => r.isHotspot).length;
   const peakAirTempF = readings.length > 0 ? Math.max(...readings.map(r => r.temp2mF)) : selectedCity.baselineAirTempF + 4.5;
   const avgDisparityF = readings.length > 0 
     ? (readings.reduce((acc, r) => acc + r.disparityF, 0) / readings.length).toFixed(1) 
@@ -161,7 +195,7 @@ export default function DashboardPage() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950">
-      {/* Global Brand Header */}
+      {/* Top Floating Glass Navbar */}
       <Navbar
         selectedCity={selectedCity}
         onSelectCity={setSelectedCity}
@@ -178,71 +212,120 @@ export default function DashboardPage() {
         onSelectBuilding={(bldg) => console.log('Selected Building:', bldg)}
       />
 
-      {/* Top Floating Metric Ribbon (Google EIE Style) */}
-      <div className="absolute top-20 left-6 z-20 pointer-events-none hidden md:block">
-        <div className="pointer-events-auto bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-lg rounded-2xl p-3 flex items-center gap-4 text-xs font-semibold text-slate-800">
-          <div className="flex items-center gap-2 pr-3 border-r border-slate-200">
-            <Flame size={16} className="text-amber-500" />
+      {/* Top HUD Metric Bar (Clean, Centered/Left Minimalist Glass Pill) */}
+      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden lg:block">
+        <div className="pointer-events-auto bg-slate-900/85 backdrop-blur-xl border border-slate-700/60 shadow-2xl rounded-2xl px-5 py-2 flex items-center gap-6 text-xs text-white">
+          <div className="flex items-center gap-2.5 pr-4 border-r border-slate-800">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Flame size={15} />
+            </div>
             <div>
-              <div className="text-[10px] text-slate-500 font-normal">2m Ambient Air Peak</div>
-              <div className="font-extrabold text-amber-600 text-sm">{peakAirTempF}°F</div>
+              <div className="text-[10px] text-slate-400 font-medium">2m Ambient Air Peak</div>
+              <div className="font-extrabold text-amber-300 font-mono text-sm">{peakAirTempF}°F</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pr-3 border-r border-slate-200">
-            <ThermometerSun size={16} className="text-red-500" />
+          <div className="flex items-center gap-2.5 pr-4 border-r border-slate-800">
+            <div className="w-7 h-7 rounded-lg bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
+              <ThermometerSun size={15} />
+            </div>
             <div>
-              <div className="text-[10px] text-slate-500 font-normal">Surface LST Disparity</div>
-              <div className="font-extrabold text-red-600 text-sm">+{avgDisparityF}°F Skin</div>
+              <div className="text-[10px] text-slate-400 font-medium">LST Surface Disparity</div>
+              <div className="font-extrabold text-red-400 font-mono text-sm">+{avgDisparityF}°F</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Building2 size={16} className="text-blue-500" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+              <Building2 size={15} />
+            </div>
             <div>
-              <div className="text-[10px] text-slate-500 font-normal">Audited Envelopes</div>
-              <div className="font-extrabold text-slate-900 text-sm">{buildings.length} Assets ({totalRoofArea.toLocaleString()} m²)</div>
+              <div className="text-[10px] text-slate-400 font-medium">Audited Assets</div>
+              <div className="font-extrabold text-slate-100 text-sm">{buildings.length} Envelopes ({totalRoofArea.toLocaleString()} m²)</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Floating Simulation & Financial Controls (Right Side Drawer) */}
-      <div className="absolute top-20 right-6 z-20 w-80 sm:w-96 flex flex-col gap-3 pointer-events-none max-h-[calc(100vh-100px)] overflow-y-auto pb-4">
-        <div className="pointer-events-auto flex flex-col gap-3">
-          {/* Layer Control Panel */}
-          <LayerControlPanel
-            activeLayers={activeLayers}
-            onToggleLayer={toggleLayer}
-          />
+      {/* Right-Side Command Drawer (Clean Tabbed Glassmorphism Dock) */}
+      <div className="absolute top-16 right-4 sm:right-6 z-20 pointer-events-none max-h-[calc(100vh-80px)] flex flex-col">
+        <div className="pointer-events-auto flex flex-col gap-2 w-80 sm:w-96 max-h-[calc(100vh-80px)] overflow-y-auto pb-4 pr-1">
+          {/* Tab Selector & Collapse Button */}
+          <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/60 shadow-xl rounded-2xl p-1.5 flex items-center justify-between text-xs text-white">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setSidebarTab('layers'); setIsSidebarOpen(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
+                  isSidebarOpen && sidebarTab === 'layers'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Layers size={13} />
+                <span>GIS Layers</span>
+              </button>
 
-          {/* Dynamic Mitigation Sliders */}
-          <CoolRoofSlider
-            albedo={targetAlbedo}
-            onChange={setTargetAlbedo}
-          />
+              <button
+                onClick={() => { setSidebarTab('mitigation'); setIsSidebarOpen(true); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all ${
+                  isSidebarOpen && sidebarTab === 'mitigation'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Sliders size={13} />
+                <span>Mitigation & ROI</span>
+              </button>
+            </div>
 
-          <CanopyDensity
-            canopyAreaSqm={addedCanopySqm}
-            onChange={setAddedCanopySqm}
-          />
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title={isSidebarOpen ? 'Minimize Drawer' : 'Expand Drawer'}
+            >
+              {isSidebarOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+          </div>
 
-          {/* Real-time Economic ROI & Cooling Result Card */}
-          <ROIAnalysisCard
-            deltaCoolingF={cooling.totalDeltaF}
-            coolRoofDeltaF={cooling.coolRoofDeltaF}
-            canopyDeltaF={cooling.canopyDeltaF}
-            annualHvacSavingsUsd={roi.annualHvacSavingsUsd}
-            annualKwhSaved={roi.annualKwhSaved}
-            paybackPeriodYears={roi.paybackPeriodYears}
-            co2ReductionTons={roi.co2ReductionTonsPerYear}
-            totalRoofAreaSqm={totalRoofArea}
-          />
+          {/* Drawer Content */}
+          {isSidebarOpen && (
+            <div className="flex flex-col gap-2.5 animate-in fade-in slide-in-from-right-4 duration-200">
+              {sidebarTab === 'layers' ? (
+                <LayerControlPanel
+                  activeLayers={activeLayers}
+                  onToggleLayer={toggleLayer}
+                />
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  <CoolRoofSlider
+                    albedo={targetAlbedo}
+                    onChange={setTargetAlbedo}
+                  />
+
+                  <CanopyDensity
+                    canopyAreaSqm={addedCanopySqm}
+                    onChange={setAddedCanopySqm}
+                  />
+
+                  <ROIAnalysisCard
+                    deltaCoolingF={cooling.totalDeltaF}
+                    coolRoofDeltaF={cooling.coolRoofDeltaF}
+                    canopyDeltaF={cooling.canopyDeltaF}
+                    annualHvacSavingsUsd={roi.annualHvacSavingsUsd}
+                    annualKwhSaved={roi.annualKwhSaved}
+                    paybackPeriodYears={roi.paybackPeriodYears}
+                    co2ReductionTons={roi.co2ReductionTonsPerYear}
+                    totalRoofAreaSqm={totalRoofArea}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Floating Multi-Agent Terminal (Bottom-Left) */}
-      <div className="absolute bottom-6 left-6 z-20 w-96 max-w-[calc(100vw-3rem)] pointer-events-none">
+      {/* Bottom-Left Multi-Agent Terminal Console */}
+      <div className="absolute bottom-6 left-4 sm:left-6 z-20 w-80 sm:w-96 max-w-[calc(100vw-2rem)] pointer-events-none">
         <div className="pointer-events-auto">
           <AgentTerminal
             logs={agentLogs}
