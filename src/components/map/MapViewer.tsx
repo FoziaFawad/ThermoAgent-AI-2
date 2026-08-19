@@ -12,7 +12,8 @@ import { FortyGuardReading } from '../../types/fortyguard';
 import { AuditedBuilding } from '../../types/simulation';
 import { H3Service } from '../../server/services/h3-service';
 import { getThermalColorRgba, CityPreset } from '../../lib/map-presets';
-import { getLandmark3DGeoJSON } from '../../lib/landmarks-3d';
+import { getLandmark3DGeoJSON, NYC_GOOGLE_EARTH_BADGES } from '../../lib/landmarks-3d';
+import { CITY_3D_BUILDINGS_LAYER } from './Building3DLayer';
 import GoogleEarthHUD from './GoogleEarthHUD';
 
 interface MapViewerProps {
@@ -31,8 +32,8 @@ interface MapViewerProps {
 }
 
 // -------------------------------------------------------------
-// Google Earth 3D Photorealistic Satellite & Realistic Solid Textured Structures
-// With High-Res Place, Road & Landmark Labels Overlay
+// Google Earth 3D Photorealistic Satellite & Natural Material Shading
+// Real-World Materials, Vertical Shading Gradients & Ambient Occlusion
 // -------------------------------------------------------------
 const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
   version: 8,
@@ -43,6 +44,7 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
+      maxzoom: 22,
       attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics'
     },
     'carto-labels': {
@@ -54,6 +56,7 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
         'https://d.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png'
       ],
       tileSize: 256,
+      maxzoom: 22,
       attribution: '&copy; OpenStreetMap &copy; CARTO'
     },
     'openmaptiles': {
@@ -63,9 +66,9 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
   },
   light: {
     anchor: 'viewport',
-    color: '#ffffff',
-    intensity: 0.95,
-    position: [1.2, 195, 42]
+    color: '#fffaf0',
+    intensity: 0.85,
+    position: [1.3, 215, 45]
   },
   layers: [
     {
@@ -73,63 +76,16 @@ const GOOGLE_EARTH_3D_STYLE: StyleSpecification = {
       type: 'raster',
       source: 'esri-satellite',
       minzoom: 0,
-      maxzoom: 20
+      maxzoom: 24
     },
-    {
-      id: 'city-3d-buildings',
-      type: 'fill-extrusion',
-      source: 'openmaptiles',
-      'source-layer': 'building',
-      minzoom: 9, // Visible from zoom 9 all the way in to zoom 20!
-      paint: {
-        'fill-extrusion-color': [
-          'case',
-          ['has', 'colour'], ['get', 'colour'],
-          ['has', 'building:colour'], ['get', 'building:colour'],
-          [
-            'match',
-            ['coalesce', ['get', 'building:material'], ['get', 'material'], ''],
-            'glass', '#93c5fd',
-            'mirror', '#cbd5e1',
-            'brick', '#c2410c',
-            'stone', '#d6d3d1',
-            'concrete', '#e5e7eb',
-            'wood', '#d97706',
-            'metal', '#94a3b8',
-            [
-              'interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 15],
-              0, '#f5f5f4',     // Warm off-white / light stone
-              18, '#e7e5e4',    // Limestone low-rise
-              40, '#e2e8f0',    // Commercial limestone
-              90, '#cbd5e1',    // Mid-rise granite
-              180, '#94a3b8',   // Slate architectural high-rise
-              320, '#64748b',   // Steel & tinted glass tower
-              500, '#475569'    // Supertall crown
-            ]
-          ]
-        ],
-        'fill-extrusion-height': [
-          'coalesce',
-          ['get', 'render_height'],
-          ['get', 'height'],
-          ['*', ['get', 'levels'], 3.5],
-          12
-        ],
-        'fill-extrusion-base': [
-          'coalesce',
-          ['get', 'render_min_height'],
-          ['get', 'min_height'],
-          0
-        ],
-        'fill-extrusion-opacity': 1.0 // 100% Solid opaque - realistic architecture
-      }
-    },
+    // Photorealistic 3D Building Layer from Building3DLayer.tsx
+    CITY_3D_BUILDINGS_LAYER,
     {
       id: 'map-labels-overlay',
       type: 'raster',
       source: 'carto-labels',
       minzoom: 0,
-      maxzoom: 20,
+      maxzoom: 24,
       paint: {
         'raster-opacity': 0.95
       }
@@ -152,6 +108,7 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
         'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
       ],
       tileSize: 256,
+      maxzoom: 22,
       attribution: '&copy; OpenStreetMap &copy; CARTO'
     },
     'openmaptiles': {
@@ -171,7 +128,7 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
       type: 'raster',
       source: 'carto-dark',
       minzoom: 0,
-      maxzoom: 20
+      maxzoom: 24
     },
     {
       id: 'city-3d-buildings',
@@ -179,6 +136,7 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
       source: 'openmaptiles',
       'source-layer': 'building',
       minzoom: 9,
+      maxzoom: 24,
       paint: {
         'fill-extrusion-color': [
           'interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 15],
@@ -201,7 +159,8 @@ const DARK_MATTER_3D_STYLE: StyleSpecification = {
           ['get', 'min_height'],
           0
         ],
-        'fill-extrusion-opacity': 0.95
+        'fill-extrusion-opacity': 0.95,
+        'fill-extrusion-vertical-gradient': true
       }
     }
   ]
@@ -219,7 +178,7 @@ export default function MapViewer({
   const map = useRef<MapLibreMap | null>(null);
   const isInitialMount = useRef(true);
   const orbitFrameId = useRef<number | null>(null);
-  const landmarkMarkerRef = useRef<Marker | null>(null);
+  const poiMarkersRef = useRef<Marker[]>([]);
 
   // Latest props stored in ref for stable access
   const propsRef = useRef({
@@ -284,7 +243,7 @@ export default function MapViewer({
     }
 
     // -------------------------------------------------------------
-    // 0. Architectural 3D Stepped Meshes for Iconic Landmarks (Empire State, etc.)
+    // 0. Architectural 12-Tier Stepped Meshes for Iconic Landmarks (Empire State, Chrysler, 1 WTC)
     // -------------------------------------------------------------
     const landmarksGeoJSON = getLandmark3DGeoJSON();
     const existingLandmarkSource = m.getSource('iconic-landmarks-source') as GeoJSONSource | undefined;
@@ -300,22 +259,33 @@ export default function MapViewer({
         id: 'iconic-landmarks-3d-mesh',
         type: 'fill-extrusion',
         source: 'iconic-landmarks-source',
+        minzoom: 0,
+        maxzoom: 24,
         paint: {
           'fill-extrusion-color': ['get', 'color'],
           'fill-extrusion-base': ['get', 'minHeight'],
           'fill-extrusion-height': ['get', 'height'],
-          'fill-extrusion-opacity': 1.0
+          'fill-extrusion-opacity': 1.0,
+          'fill-extrusion-vertical-gradient': true
         }
       });
     }
 
+    if (m.getLayer('iconic-landmarks-3d-mesh')) {
+      m.setLayoutProperty(
+        'iconic-landmarks-3d-mesh',
+        'visibility',
+        layers.buildings3D ? 'visible' : 'none'
+      );
+    }
+
     // -------------------------------------------------------------
-    // 1. Build H3 Thermal Hexagon Prisms GeoJSON
+    // 1. Build H3 Thermal Hexagon Prisms GeoJSON (Seamless Heatmap Blending)
     // -------------------------------------------------------------
     const hexFeatures: GeoJSON.Feature[] = thermalReadings.map(r => {
       const polygonCoords = H3Service.cellToGeoJSONPolygon(r.h3Index);
       const color = getThermalColorRgba(r.temp2mF);
-      const colorRgbaStr = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${r.isHotspot ? 0.88 : 0.60})`;
+      const colorRgbaStr = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${r.isHotspot ? 0.85 : 0.55})`;
 
       return {
         type: 'Feature',
@@ -333,7 +303,7 @@ export default function MapViewer({
           isHotspot: r.isHotspot,
           spikeDeltaF: r.spikeDeltaF,
           color: colorRgbaStr,
-          height: r.isHotspot ? 110 : 35
+          height: r.isHotspot ? 100 : 30
         }
       };
     });
@@ -352,7 +322,7 @@ export default function MapViewer({
         data: hexGeoJSON
       });
 
-      // 3D Extruded H3 Hexagon Columns
+      // 3D Extruded H3 Hexagon Columns with Smooth Blending
       m.addLayer({
         id: 'h3-thermal-extrusion',
         type: 'fill-extrusion',
@@ -361,7 +331,8 @@ export default function MapViewer({
           'fill-extrusion-color': ['get', 'color'],
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.85
+          'fill-extrusion-opacity': 0.75,
+          'fill-extrusion-vertical-gradient': true
         }
       });
 
@@ -482,7 +453,8 @@ export default function MapViewer({
           'fill-extrusion-color': ['get', 'color'],
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.98
+          'fill-extrusion-opacity': 0.98,
+          'fill-extrusion-vertical-gradient': true
         }
       });
 
@@ -601,32 +573,50 @@ export default function MapViewer({
     }
 
     // -------------------------------------------------------------
-    // 4. Google Earth Style Purple Floating Landmark Marker Pin
+    // 4. Exact Google Earth Landmark POI Badges (Camera, Church, Zoo, University)
     // -------------------------------------------------------------
-    if (landmarkMarkerRef.current) {
-      landmarkMarkerRef.current.remove();
-      landmarkMarkerRef.current = null;
-    }
+    poiMarkersRef.current.forEach(marker => marker.remove());
+    poiMarkersRef.current = [];
 
-    const markerEl = document.createElement('div');
-    markerEl.className = 'group cursor-pointer pointer-events-auto flex items-center gap-1.5 bg-white text-slate-900 shadow-2xl rounded-full pl-3 pr-1.5 py-1 border border-purple-400/80 ring-4 ring-purple-500/20 backdrop-blur-md transition-transform hover:scale-105';
-    markerEl.innerHTML = `
-      <span class="text-xs font-bold font-sans tracking-tight">${currentLocation.name}</span>
-      <div class="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md">
-        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-          <circle cx="12" cy="13" r="3"/>
-        </svg>
-      </div>
-    `;
+    const isNYC = currentLocation.id === 'new-york-ny';
+    const badgesToRender = isNYC ? NYC_GOOGLE_EARTH_BADGES : [
+      { id: currentLocation.id, name: currentLocation.name, lat: currentLocation.coordinates.latitude, lng: currentLocation.coordinates.longitude, type: 'camera' as const, color: '#9333ea' }
+    ];
 
-    landmarkMarkerRef.current = new Marker({ element: markerEl, anchor: 'bottom' })
-      .setLngLat([currentLocation.coordinates.longitude, currentLocation.coordinates.latitude])
-      .addTo(m);
+    badgesToRender.forEach((badge) => {
+      const el = document.createElement('div');
+      el.className = 'group pointer-events-auto cursor-pointer flex items-center gap-1.5 bg-slate-900/85 hover:bg-slate-900 text-white shadow-2xl rounded-full pl-1.5 pr-3 py-1 border border-white/20 backdrop-blur-md transition-transform hover:scale-110';
+
+      let iconSvg = '';
+      if (badge.type === 'camera') {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
+      } else if (badge.type === 'zoo') {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="4" cy="8" r="2"/><path d="M12 18c-3 0-5-2-5-4 0-2 2-3 5-3s5 1 5 3c0 2-2 4-5 4z"/></svg>`;
+      } else if (badge.type === 'church') {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><line x1="6" y1="8" x2="18" y2="8"/></svg>`;
+      } else if (badge.type === 'university') {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`;
+      } else {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+      }
+
+      el.innerHTML = `
+        <div class="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm" style="background-color: ${badge.color}">
+          ${iconSvg}
+        </div>
+        <span class="text-[11px] font-semibold tracking-tight text-white/95 whitespace-nowrap drop-shadow-md">${badge.name}</span>
+      `;
+
+      const mkr = new Marker({ element: el, anchor: 'center' })
+        .setLngLat([badge.lng, badge.lat])
+        .addTo(m);
+
+      poiMarkersRef.current.push(mkr);
+    });
 
   }, []);
 
-  // Initialize MapLibre GL Map Instance (With pitch clamped to 60° max)
+  // Initialize MapLibre GL Map Instance (With pitch clamped to 60° max and high-zoom nearZ tuning)
   useEffect(() => {
     if (!mapContainer.current) return;
 
@@ -644,7 +634,9 @@ export default function MapViewer({
       attributionControl: false,
       dragRotate: true,
       touchPitch: true,
-      pitchWithRotate: true
+      pitchWithRotate: true,
+      maxZoom: 24, // High-zoom up to 24 without clipping
+      minZoom: 2
     });
 
     mapInstance.on('load', () => {
@@ -671,9 +663,7 @@ export default function MapViewer({
       if (orbitFrameId.current) {
         cancelAnimationFrame(orbitFrameId.current);
       }
-      if (landmarkMarkerRef.current) {
-        landmarkMarkerRef.current.remove();
-      }
+      poiMarkersRef.current.forEach(m => m.remove());
       mapInstance.remove();
     };
   }, [syncMapLayers]);
