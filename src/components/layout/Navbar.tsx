@@ -19,6 +19,7 @@ import {
 interface NavbarProps {
   selectedCity?: CityPreset;
   onSelectCity?: (city: CityPreset) => void;
+  onFlyToGlobe?: () => void;
   isAgentRunning?: boolean;
   onToggleLayers?: () => void;
   onToggle3D?: () => void;
@@ -29,6 +30,7 @@ interface NavbarProps {
 export default function Navbar({
   selectedCity = CITY_PRESETS[0],
   onSelectCity,
+  onFlyToGlobe,
   isAgentRunning = false,
   onToggleLayers,
   onToggle3D,
@@ -66,6 +68,7 @@ export default function Navbar({
             <CitySearchBar
               selectedCity={selectedCity}
               onSelectCity={onSelectCity}
+              onFlyToGlobe={onFlyToGlobe}
             />
           </div>
         )}

@@ -4,7 +4,7 @@ export interface CityPreset {
   subtitle?: string;
   state?: string;
   country: string;
-  category?: 'landmark' | 'neighborhood' | 'street' | 'city' | 'district';
+  category?: 'landmark' | 'neighborhood' | 'street' | 'city' | 'district' | 'address';
   region?: 'West' | 'South' | 'Midwest' | 'Northeast' | 'Southwest' | 'Pacific' | 'International';
   coordinates: {
     longitude: number;
@@ -907,13 +907,33 @@ export const US_CITIES: CityPreset[] = [
   }
 ];
 
-// All presets combining in-city locations and cities
-export const ALL_PRESETS: CityPreset[] = [...IN_CITY_LOCATIONS, ...US_CITIES];
+// Globe / Space View Initial Preset (Google Earth Style Orbit)
+export const GLOBE_WORLD_PRESET: CityPreset = {
+  id: 'earth-globe-space',
+  name: 'Planet Earth',
+  subtitle: 'Global 3D Earth Orbit',
+  country: 'Global',
+  category: 'city',
+  region: 'International',
+  coordinates: {
+    longitude: 0,
+    latitude: 20,
+    zoom: 1.8,
+    pitch: 0,
+    bearing: 0
+  },
+  baselineAirTempF: 72.0,
+  baselineSurfaceTempF: 75.0,
+  description: 'Global 3D Earth digital twin. Search any location, address, coordinates, or live GPS to fly into street level.'
+};
+
+// All presets combining globe, in-city locations, and cities
+export const ALL_PRESETS: CityPreset[] = [GLOBE_WORLD_PRESET, ...IN_CITY_LOCATIONS, ...US_CITIES];
 export const CITY_PRESETS = ALL_PRESETS;
 
 // Helper to filter presets by text query
 export function searchLocations(query: string): CityPreset[] {
-  if (!query || query.trim() === '') return ALL_PRESETS.slice(0, 20);
+  if (!query || query.trim() === '') return ALL_PRESETS.slice(0, 25);
   const q = query.toLowerCase().trim();
   return ALL_PRESETS.filter(c => 
     c.name.toLowerCase().includes(q) ||
@@ -926,6 +946,67 @@ export function searchLocations(query: string): CityPreset[] {
 }
 
 export const searchCities = searchLocations;
+
+// Coordinate Parser: Supports Decimal Degrees, DMS (Degrees Minutes Seconds), and Labeled Coordinates
+export function parseCoordinatesInput(input: string): { lat: number; lng: number } | null {
+  if (!input || !input.trim()) return null;
+  const str = input.trim();
+
+  // Pattern 1: Decimal Degrees (e.g. "40.7128, -74.0060" or "40.7128 -74.0060" or "lat: 40.7128, lng: -74.0060")
+  const ddRegex = /^[^\d-]*(-?\d{1,3}(?:\.\d+)?)\s*[,\s/|\t]+\s*(-?\d{1,3}(?:\.\d+)?)[^\d]*$/i;
+  const ddMatch = str.match(ddRegex);
+  if (ddMatch) {
+    const lat = parseFloat(ddMatch[1]);
+    const lng = parseFloat(ddMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng };
+    }
+  }
+
+  // Pattern 2: Decimal with N/S/E/W suffixes (e.g. "40.7128 N, 74.0060 W")
+  const dirRegex = /(\d{1,3}(?:\.\d+)?)\s*°?\s*([NS])\s*[,;\s]+\s*(\d{1,3}(?:\.\d+)?)\s*°?\s*([EW])/i;
+  const dirMatch = str.match(dirRegex);
+  if (dirMatch) {
+    let lat = parseFloat(dirMatch[1]);
+    const latDir = dirMatch[2].toUpperCase();
+    let lng = parseFloat(dirMatch[3]);
+    const lngDir = dirMatch[4].toUpperCase();
+
+    if (latDir === 'S') lat = -lat;
+    if (lngDir === 'W') lng = -lng;
+
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng };
+    }
+  }
+
+  // Pattern 3: Degrees Minutes Seconds (DMS) (e.g. 40° 42' 46" N, 74° 0' 21" W)
+  const dmsRegex = /(\d{1,3})[°\s]+(\d{1,2})['\s]+(\d{1,2}(?:\.\d+)?)["\s]*([NS])\s*[,;\s]+\s*(\d{1,3})[°\s]+(\d{1,2})['\s]+(\d{1,2}(?:\.\d+)?)["\s]*([EW])/i;
+  const dmsMatch = str.match(dmsRegex);
+  if (dmsMatch) {
+    const latDeg = parseFloat(dmsMatch[1]);
+    const latMin = parseFloat(dmsMatch[2]);
+    const latSec = parseFloat(dmsMatch[3]);
+    const latDir = dmsMatch[4].toUpperCase();
+
+    const lngDeg = parseFloat(dmsMatch[5]);
+    const lngMin = parseFloat(dmsMatch[6]);
+    const lngSec = parseFloat(dmsMatch[7]);
+    const lngDir = dmsMatch[8].toUpperCase();
+
+    let lat = latDeg + (latMin / 60) + (latSec / 3600);
+    let lng = lngDeg + (lngMin / 60) + (lngSec / 3600);
+
+    if (latDir === 'S') lat = -lat;
+    if (lngDir === 'W') lng = -lng;
+
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng };
+    }
+  }
+
+  return null;
+}
 
 // Helper to create a dynamic location preset from live geocoding
 export function createDynamicLocationPreset(
