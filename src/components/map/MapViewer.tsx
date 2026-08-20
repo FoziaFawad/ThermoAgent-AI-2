@@ -12,7 +12,8 @@ import { FortyGuardReading } from '../../types/fortyguard';
 import { AuditedBuilding } from '../../types/simulation';
 import { H3Service } from '../../server/services/h3-service';
 import { getThermalColorRgba, CityPreset } from '../../lib/map-presets';
-import { getLandmark3DGeoJSON, NYC_GOOGLE_EARTH_BADGES } from '../../lib/landmarks-3d';
+import { getLandmark3DGeoJSON, CITY_GOOGLE_EARTH_BADGES } from '../../lib/landmarks-3d';
+import { getCitySkylines3DGeoJSON } from '../../lib/city-skylines-3d';
 import { CITY_3D_BUILDINGS_LAYER } from './Building3DLayer';
 import GoogleEarthHUD from './GoogleEarthHUD';
 
@@ -212,7 +213,7 @@ export default function MapViewer({
   const [hoveredInfo, setHoveredInfo] = useState<{
     x: number;
     y: number;
-    type: 'hex' | 'building';
+    type: 'hex' | 'building' | 'landmark';
     data: any;
   } | null>(null);
 
@@ -268,6 +269,24 @@ export default function MapViewer({
           'fill-extrusion-opacity': 1.0,
           'fill-extrusion-vertical-gradient': true
         }
+      });
+
+      // Mouse events for iconic landmark 3D inspection
+      m.on('mousemove', 'iconic-landmarks-3d-mesh', (e) => {
+        if (!e.features || !e.features[0]) return;
+        m.getCanvas().style.cursor = 'pointer';
+        const props = e.features[0].properties as any;
+        setHoveredInfo({
+          x: e.point.x,
+          y: e.point.y,
+          type: 'landmark',
+          data: props
+        });
+      });
+
+      m.on('mouseleave', 'iconic-landmarks-3d-mesh', () => {
+        m.getCanvas().style.cursor = '';
+        setHoveredInfo(null);
       });
     }
 
@@ -578,8 +597,8 @@ export default function MapViewer({
     poiMarkersRef.current.forEach(marker => marker.remove());
     poiMarkersRef.current = [];
 
-    const isNYC = currentLocation.id === 'new-york-ny';
-    const badgesToRender = isNYC ? NYC_GOOGLE_EARTH_BADGES : [
+    const cityBadges = CITY_GOOGLE_EARTH_BADGES.filter(b => b.cityId === currentLocation.id);
+    const badgesToRender = cityBadges.length > 0 ? cityBadges : [
       { id: currentLocation.id, name: currentLocation.name, lat: currentLocation.coordinates.latitude, lng: currentLocation.coordinates.longitude, type: 'camera' as const, color: '#9333ea' }
     ];
 
@@ -859,6 +878,31 @@ export default function MapViewer({
                       <span className="text-orange-600 font-semibold">+{hoveredInfo.data.spikeDeltaF}°F</span>
                     </div>
                   )}
+                </div>
+              </div>
+            ) : hoveredInfo.type === 'landmark' ? (
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
+                    <span className="font-bold text-purple-700">{hoveredInfo.data.name || 'Iconic Landmark'}</span>
+                  </div>
+                  <span className="bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-full text-[10px] border border-purple-200">
+                    3D LANDMARK
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Architectural Tier:</span>
+                    <span className="font-semibold text-slate-800">{hoveredInfo.data.tierName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Elevation Span:</span>
+                    <span className="font-bold text-slate-900">{hoveredInfo.data.minHeight}m – {hoveredInfo.data.height}m</span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-100 italic">
+                    {hoveredInfo.data.description}
+                  </div>
                 </div>
               </div>
             ) : (
